@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "AI Colorizer",
+    "slug": "ai-colorizer-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.max.colouriseaiapp",
+      "appleTeamId": "4LYN3P325H"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.max.colouriseaiapp",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow AI Colorizer to access your camera"
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow AI Colorizer to access your photos",
+          "savePhotosPermission": "Allow AI Colorizer to save photos to your camera roll"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow AI Colorizer to access your photos"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.706503746923-n9tgl6s2kr4p71ao0qhme85tu3pvktb2"
+        }
+      ],
+      [
+        "expo-apple-authentication"
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5a2ed731-bd21-4441-b24f-182838ac8556"
+      }
+    },
+    "owner": "acevalentine"
+  }
+}
