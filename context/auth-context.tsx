@@ -2,6 +2,7 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { auth } from "../lib/supabase"
 import { AuthService } from "../lib/auth-service"
+import { DatabaseService } from "../lib/database-service"
 import type { Session, User as SupabaseUser } from "@supabase/gotrue-js"
 
 // Define a type for user images
@@ -38,17 +39,51 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Helper function to convert Supabase user to our User type
-const convertSupabaseUser = (supabaseUser: SupabaseUser, session: Session): User => {
-  return {
-    id: supabaseUser.id,
-    name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split("@")[0] || "User",
-    email: supabaseUser.email || "",
-    avatar: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
-    createdAt: new Date(supabaseUser.created_at),
-    images: [], // Will be loaded separately
-    credits: 10, // Default credits - you might want to store this in a profile table
-    lastActive: [new Date()] // Just active today by default
+// Helper function to convert Supabase user to our User type using database
+const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session): Promise<User> => {
+  try {
+    // Try to get profile from database first
+    let userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
+    
+    if (!userProfile) {
+      // Profile will be created automatically by the database trigger
+      // Wait a moment and try again
+      console.log('User profile not found, waiting for automatic creation...')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
+      
+      if (!userProfile) {
+        // Still no profile, something went wrong
+        throw new Error('Failed to create user profile in database')
+      }
+    }
+    
+    // Record user login activity
+    await DatabaseService.recordUserActivity(supabaseUser.id, 'login')
+    
+    return {
+      id: supabaseUser.id,
+      name: userProfile.full_name || supabaseUser.user_metadata?.full_name || supabaseUser.email?.split("@")[0] || "User",
+      email: supabaseUser.email || "",
+      avatar: userProfile.avatar_url || supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
+      createdAt: new Date(supabaseUser.created_at),
+      credits: userProfile.credits || 10,
+      lastActive: [new Date()], // Will be loaded from user_activity table if needed
+      images: [] // Will be loaded separately via DatabaseService.getUserImages()
+    }
+  } catch (error) {
+    console.error('Error loading user profile from database:', error)
+    // Fallback to basic user info if database fails
+    return {
+      id: supabaseUser.id,
+      name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split("@")[0] || "User",
+      email: supabaseUser.email || "",
+      avatar: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
+      createdAt: new Date(supabaseUser.created_at),
+      credits: 10,
+      lastActive: [new Date()],
+      images: []
+    }
   }
 }
 
@@ -59,11 +94,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    AuthService.getCurrentSession().then((session) => {
+    AuthService.getCurrentSession().then(async (session) => {
       if (session?.user) {
-        const convertedUser = convertSupabaseUser(session.user, session)
-        setUser(convertedUser)
-        setSession(session)
+        try {
+          const convertedUser = await convertSupabaseUser(session.user, session)
+          setUser(convertedUser)
+          setSession(session)
+        } catch (error) {
+          console.error('Error converting initial user:', error)
+        }
       }
       setIsLoading(false)
     })
@@ -75,9 +114,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Auth state changed:', event, session?.user?.email)
       
       if (session?.user) {
-        const convertedUser = convertSupabaseUser(session.user, session)
-        setUser(convertedUser)
-        setSession(session)
+        try {
+          const convertedUser = await convertSupabaseUser(session.user, session)
+          setUser(convertedUser)
+          setSession(session)
+        } catch (error) {
+          console.error('Error converting user on auth change:', error)
+          // Set loading to false even if there's an error
+        }
       } else {
         setUser(null)
         setSession(null)
@@ -145,6 +189,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
 
         if (error) throw error
+
+        // Update database profile
+        await DatabaseService.updateUserProfile(user.id, {
+          full_name: data.name,
+          avatar_url: data.avatar
+        })
 
         // Update local user state
         setUser({
