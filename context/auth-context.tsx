@@ -51,8 +51,18 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
     // Get an authenticated database client
     const authDb = getAuthenticatedDb(session.access_token)
     
+    console.log('=== USER PROFILE CREATION PROCESS ===')
+    console.log('User ID:', supabaseUser.id)
+    console.log('Email:', supabaseUser.email)
+    console.log('Session token present:', !!session.access_token)
+    
+    // First, wait a bit for the database trigger to potentially create the profile
+    console.log('Waiting for database trigger...')
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    
     // Try to get profile from database first
     let userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
+    console.log('Profile found after trigger wait:', !!userProfile)
     
     if (!userProfile) {
       // Profile doesn't exist, try to create it manually using authenticated client
@@ -74,6 +84,8 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
         streak_count: 1
       }
       
+      console.log('Attempting manual profile creation with data:', profileData)
+      
       // Insert the profile directly using authenticated client
       const { data: createdProfile, error: insertError } = await authDb
         .from('user_profiles')
@@ -82,25 +94,67 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
         .single()
       
       if (insertError) {
-        console.error('Error creating user profile manually:', insertError)
+        console.error('=== DETAILED INSERT ERROR ===')
+        console.error('Error code:', insertError.code)
+        console.error('Error message:', insertError.message)
+        console.error('Error details:', insertError.details)
+        console.error('Error hint:', insertError.hint)
+        console.error('Profile data being inserted:', profileData)
+        console.error('Session access token:', session.access_token ? 'Present' : 'Missing')
+        console.error('User ID:', supabaseUser.id)
+        console.error('==============================')
+        
         // If insert fails due to conflict (profile already exists), try to get it again
         if (insertError.code === '23505') {
+          console.log('Profile already exists, trying to fetch...')
           await new Promise(resolve => setTimeout(resolve, 1000))
           userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
+        } else {
+          // For other errors, try using service role as fallback
+          console.log('Trying service role fallback for profile creation...')
+          try {
+            const serviceRoleResponse = await fetch(`https://wnkxqkesotshizqedmxw.supabase.co/rest/v1/user_profiles`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODAwOTEyNywiZXhwIjoyMDYzNTg1MTI3fQ.kdDePscBMUdq9KlmknoFzwpk4vpJVOqGoRu03Z7h9rQ',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODAwOTEyNywiZXhwIjoyMDYzNTg1MTI3fQ.kdDePscBMUdq9KlmknoFzwpk4vpJVOqGoRu03Z7h9rQ',
+                'Prefer': 'return=representation'
+              },
+              body: JSON.stringify(profileData)
+            })
+            
+            if (serviceRoleResponse.ok) {
+              const serviceRoleData = await serviceRoleResponse.json()
+              console.log('Service role profile creation successful:', serviceRoleData)
+              userProfile = Array.isArray(serviceRoleData) ? serviceRoleData[0] : serviceRoleData
+            } else {
+              const errorText = await serviceRoleResponse.text()
+              console.error('Service role profile creation failed:', errorText)
+            }
+          } catch (serviceRoleError) {
+            console.error('Service role fallback failed:', serviceRoleError)
+          }
         }
         
         if (!userProfile) {
-          throw new Error(`Database error saving new user: ${insertError.message}`)
+          throw new Error(`Database error saving new user: ${insertError.message} (Code: ${insertError.code})`)
         }
       } else {
         userProfile = createdProfile
+        console.log('Manual profile creation successful!')
       }
+    } else {
+      console.log('Profile found via trigger or previous creation')
     }
     
     // At this point userProfile should definitely exist
     if (!userProfile) {
       throw new Error('Failed to create or retrieve user profile')
     }
+    
+    console.log('Final user profile:', userProfile)
+    console.log('=== END USER PROFILE CREATION ===')
     
     // Record user login activity (non-blocking)
     DatabaseService.recordUserActivity(supabaseUser.id, 'login').catch(error => {
