@@ -1,15 +1,11 @@
 const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-// Block problematic packages that require Node.js modules
-// Simplified to only block the essential problematic packages
-config.resolver.blockList = [
-  // Block only the essential ws and realtime packages
-  /.*\/node_modules\/@supabase\/realtime-js\/.*/,
-  /.*\/node_modules\/ws\/.*/,
-];
+// Remove blockList since we'll use aliases instead
+// config.resolver.blockList = [];
 
 config.resolver.alias = {
   'crypto': 'crypto-browserify',
@@ -27,9 +23,10 @@ config.resolver.alias = {
   'timers': 'timers-browserify',
   'vm': 'vm-browserify',
   'events': 'events',
-  // Exclude ws package entirely since we don't need WebSocket
+  // Replace realtime with mock instead of blocking
+  '@supabase/realtime-js': path.resolve(__dirname, 'lib/realtime-mock.js'),
+  // Block ws entirely since we have a mock realtime
   'ws': false,
-  '@supabase/realtime-js': false,
 };
 
 config.resolver.fallback = {
@@ -48,9 +45,10 @@ config.resolver.fallback = {
   'timers': 'timers-browserify',
   'vm': 'vm-browserify',
   'events': 'events',
-  // Exclude ws package entirely
+  // Replace realtime with mock instead of blocking
+  '@supabase/realtime-js': path.resolve(__dirname, 'lib/realtime-mock.js'),
+  // Block ws entirely since we have a mock realtime
   'ws': false,
-  '@supabase/realtime-js': false,
 };
 
 module.exports = config;
