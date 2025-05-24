@@ -4,21 +4,22 @@ const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 
 // Block problematic packages that require Node.js modules
+// Note: All patterns must have consistent flags
 config.resolver.blockList = [
-  // Block ws and realtime packages completely - multiple patterns to ensure complete blocking
-  /.*\/node_modules\/@supabase\/realtime-js\/.*/,
-  /.*\/node_modules\/ws\/.*/,
-  /.*\/ws$/,
-  /.*realtime.*/,
-  /.*@supabase\/realtime-js.*/,
+  // Block ws and realtime packages completely - all patterns use 'i' flag for consistency
+  /.*\/node_modules\/@supabase\/realtime-js\/.*/i,
+  /.*\/node_modules\/ws\/.*/i,
+  /.*\/ws$/i,
+  /.*realtime.*/i,
+  /.*@supabase\/realtime-js.*/i,
   // Block any reference to ws package
-  /ws/,
+  /ws/i,
   // Block stream module from ws specifically
-  /.*\/ws\/lib\/stream\.js$/,
-  /.*\/ws\/lib\/.*/,
+  /.*\/ws\/lib\/stream\.js$/i,
+  /.*\/ws\/lib\/.*/i,
   // Block WebSocket related packages
   /.*websocket.*/i,
-  /.*WebSocket.*/,
+  /.*WebSocket.*/i,
 ];
 
 config.resolver.alias = {
