@@ -7,11 +7,27 @@ type ApiContextType = {
 
 // Create the context with a default value
 const ApiContext = createContext<ApiContextType>({
-  apiKey: "755e329a-c84e-4664-b3ae-bc09e1802081" // Your updated API key
+  apiKey: "" // API key should be set by user
 })
 
 export function ApiProvider({ children }: { children: React.ReactNode }) {
-  const [apiKey, setApiKey] = useState<string>("755e329a-c84e-4664-b3ae-bc09e1802081")
+  const [apiKey, setApiKey] = useState<string>("")
+
+  // Load the API key from AsyncStorage when component mounts
+  useEffect(() => {
+    const loadApiKey = async () => {
+      try {
+        const storedKey = await AsyncStorage.getItem("deepai_api_key")
+        if (storedKey) {
+          setApiKey(storedKey)
+        }
+      } catch (error) {
+        console.error("Error loading API key:", error)
+      }
+    }
+    
+    loadApiKey()
+  }, [])
 
   // Store the API key in AsyncStorage when component mounts
   useEffect(() => {
