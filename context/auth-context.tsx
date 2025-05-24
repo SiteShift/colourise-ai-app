@@ -1,8 +1,8 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { supabase } from "../lib/supabase"
+import { auth } from "../lib/supabase"
 import { AuthService } from "../lib/auth-service"
-import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
+import type { Session, User as SupabaseUser } from "@supabase/gotrue-js"
 
 // Define a type for user images
 type UserImage = {
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.email)
       
       if (session?.user) {
@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data.name) updates.full_name = data.name
         if (data.avatar !== undefined) updates.avatar_url = data.avatar
 
-        const { error } = await supabase.auth.updateUser({
+        const { error } = await auth.updateUser({
           data: updates
         })
 

@@ -1,6 +1,6 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import * as AppleAuthentication from 'expo-apple-authentication'
-import { supabase } from './supabase'
+import { auth } from './supabase'
 import { Platform } from 'react-native'
 
 // Configure Google Sign-In
@@ -17,7 +17,7 @@ export class AuthService {
       const userInfo = await GoogleSignin.signIn()
       
       if (userInfo.data?.idToken) {
-        const { data, error } = await supabase.auth.signInWithIdToken({
+        const { data, error } = await auth.signInWithIdToken({
           provider: 'google',
           token: userInfo.data.idToken,
         })
@@ -48,7 +48,7 @@ export class AuthService {
       })
 
       if (credential.identityToken) {
-        const { data, error } = await supabase.auth.signInWithIdToken({
+        const { data, error } = await auth.signInWithIdToken({
           provider: 'apple',
           token: credential.identityToken,
         })
@@ -67,7 +67,7 @@ export class AuthService {
   // Email/Password Sign-In
   static async signInWithEmail(email: string, password: string) {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await auth.signInWithPassword({
         email,
         password,
       })
@@ -83,7 +83,7 @@ export class AuthService {
   // Email/Password Sign-Up
   static async signUpWithEmail(email: string, password: string, fullName?: string) {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await auth.signUp({
         email,
         password,
         options: {
@@ -113,7 +113,7 @@ export class AuthService {
       }
 
       // Sign out from Supabase
-      const { error } = await supabase.auth.signOut()
+      const { error } = await auth.signOut()
       if (error) throw error
     } catch (error) {
       console.error('Sign Out Error:', error)
@@ -124,7 +124,7 @@ export class AuthService {
   // Get current session
   static async getCurrentSession() {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession()
+      const { data: { session }, error } = await auth.getSession()
       if (error) throw error
       return session
     } catch (error) {

@@ -1,5 +1,5 @@
-import { createClient, SupabaseClientOptions } from '@supabase/supabase-js'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { GoTrueClient } from '@supabase/gotrue-js'
+import { PostgrestClient } from '@supabase/postgrest-js'
 import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
 
@@ -30,48 +30,35 @@ const ExpoSecureStoreAdapter = {
   },
 }
 
-// Custom client options that completely disable realtime
-const supabaseOptions: SupabaseClientOptions<any> = {
-  auth: {
-    storage: ExpoSecureStoreAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+// Create separate auth client (no WebSocket dependencies)
+export const auth = new GoTrueClient({
+  url: `${supabaseUrl}/auth/v1`,
+  headers: {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${supabaseAnonKey}`,
   },
-  global: {
-    headers: {
-      'X-Client-Info': 'supabase-js-mobile-auth-only'
-    }
-  },
-  // Completely disable realtime - this should prevent ws from being imported
-  realtime: undefined as any, // Force disable
-}
-
-// Create client without realtime
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, supabaseOptions)
-
-// Ensure realtime is never initialized
-Object.defineProperty(supabase, 'realtime', {
-  get: () => {
-    console.log('Realtime access blocked - not needed for this app')
-    return {
-      disconnect: () => {},
-      removeAllChannels: () => {},
-      removeChannel: () => {},
-      channel: () => ({
-        subscribe: () => {},
-        unsubscribe: () => {},
-        on: () => {},
-        off: () => {},
-      })
-    }
-  },
-  set: () => {
-    console.log('Realtime setter blocked - not needed for this app')
-  },
-  configurable: false,
-  enumerable: false
+  autoRefreshToken: true,
+  persistSession: true,
+  storageKey: 'supabase.auth.token',
+  storage: ExpoSecureStoreAdapter,
+  fetch,
 })
+
+// Create database client (no WebSocket dependencies)
+export const db = new PostgrestClient(`${supabaseUrl}/rest/v1`, {
+  headers: {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${supabaseAnonKey}`,
+  },
+  fetch,
+})
+
+// Compatibility wrapper for existing code
+export const supabase = {
+  auth,
+  from: (table: string) => db.from(table),
+  // Add other methods as needed
+}
 
 interface ImageMetadata {
   id: string;

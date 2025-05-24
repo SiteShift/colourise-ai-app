@@ -22,7 +22,7 @@
   - [ ] Image metadata CRUD operations
   - [ ] User profile management
 
-## Payment Integration (Stripe)
+## Payment Integration (CHANGE THIS AS IT MUST BE APPLE IN APP PURCHAES NOT ALLOWED STRIPE)
 
 - [ ] Set up Stripe account and configure webhooks
 - [ ] Implement subscription plans
