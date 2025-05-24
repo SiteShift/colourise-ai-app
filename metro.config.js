@@ -4,29 +4,18 @@ const { getDefaultConfig } = require('expo/metro-config');
 const config = getDefaultConfig(__dirname);
 
 // Block problematic packages that require Node.js modules
-// Note: All patterns must have consistent flags
+// Simplified to only block the essential problematic packages
 config.resolver.blockList = [
-  // Block ws and realtime packages completely - all patterns use 'i' flag for consistency
-  /.*\/node_modules\/@supabase\/realtime-js\/.*/i,
-  /.*\/node_modules\/ws\/.*/i,
-  /.*\/ws$/i,
-  /.*realtime.*/i,
-  /.*@supabase\/realtime-js.*/i,
-  // Block any reference to ws package
-  /ws/i,
-  // Block stream module from ws specifically
-  /.*\/ws\/lib\/stream\.js$/i,
-  /.*\/ws\/lib\/.*/i,
-  // Block WebSocket related packages
-  /.*websocket.*/i,
-  /.*WebSocket.*/i,
+  // Block only the essential ws and realtime packages
+  /.*\/node_modules\/@supabase\/realtime-js\/.*/,
+  /.*\/node_modules\/ws\/.*/,
 ];
 
 config.resolver.alias = {
   'crypto': 'crypto-browserify',
   'stream': 'stream-browserify', 
   'buffer': 'buffer',
-  'process': 'process/browser',
+  'process': 'process/browser.js',
   'util': 'util',
   'assert': 'assert',
   'url': 'url',
@@ -47,7 +36,7 @@ config.resolver.fallback = {
   'crypto': 'crypto-browserify',
   'stream': 'stream-browserify',
   'buffer': 'buffer',
-  'process': 'process/browser',
+  'process': 'process/browser.js',
   'util': 'util',
   'assert': 'assert',
   'url': 'url',

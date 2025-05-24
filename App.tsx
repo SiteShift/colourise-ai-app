@@ -3,7 +3,10 @@ import 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
-global.process = require('process');
+// Use process polyfill without explicit import to avoid Metro resolution issues
+if (typeof global.process === 'undefined') {
+  global.process = { env: {}, browser: true } as any;
+}
 import React from 'react';
 import { NavigationContainer } from "@react-navigation/native"
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack'

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClientOptions } from '@supabase/supabase-js'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
@@ -30,36 +30,48 @@ const ExpoSecureStoreAdapter = {
   },
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Custom client options that completely disable realtime
+const supabaseOptions: SupabaseClientOptions<any> = {
   auth: {
     storage: ExpoSecureStoreAdapter,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
-  // Completely disable realtime to prevent ws dependency
-  realtime: {
-    // These settings completely disable realtime connections
-    heartbeatIntervalMs: 0,
-    reconnectAfterMs: () => null,
-    encode: () => '',
-    decode: () => ({}),
-  },
   global: {
     headers: {
       'X-Client-Info': 'supabase-js-mobile-auth-only'
     }
   },
-  // Disable all database operations that might trigger realtime
-  db: {
-    schema: 'public'
-  }
-})
-
-// Disable realtime entirely after client creation
-if (supabase.realtime) {
-  supabase.realtime.disconnect()
+  // Completely disable realtime - this should prevent ws from being imported
+  realtime: undefined as any, // Force disable
 }
+
+// Create client without realtime
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, supabaseOptions)
+
+// Ensure realtime is never initialized
+Object.defineProperty(supabase, 'realtime', {
+  get: () => {
+    console.log('Realtime access blocked - not needed for this app')
+    return {
+      disconnect: () => {},
+      removeAllChannels: () => {},
+      removeChannel: () => {},
+      channel: () => ({
+        subscribe: () => {},
+        unsubscribe: () => {},
+        on: () => {},
+        off: () => {},
+      })
+    }
+  },
+  set: () => {
+    console.log('Realtime setter blocked - not needed for this app')
+  },
+  configurable: false,
+  enumerable: false
+})
 
 interface ImageMetadata {
   id: string;
