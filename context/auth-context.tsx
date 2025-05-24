@@ -1,9 +1,12 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { auth, db } from "../lib/supabase"
+import { auth, db, updateDbHeaders, getAuthenticatedDb } from "../lib/supabase"
 import { AuthService } from "../lib/auth-service"
 import { DatabaseService } from "../lib/database-service"
 import type { Session, User as SupabaseUser } from "@supabase/gotrue-js"
+
+// Import the anon key for resetting
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgwMDkxMjcsImV4cCI6MjA2MzU4NTEyN30.m-cl-q_2KAFDi6S-d22ivr6L-YppSXM4BI-00iG6R0Q'
 
 // Define a type for user images
 type UserImage = {
@@ -42,11 +45,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // Helper function to convert Supabase user to our User type using database
 const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session): Promise<User> => {
   try {
+    // Update database client with user's access token
+    updateDbHeaders(session.access_token)
+    
+    // Get an authenticated database client
+    const authDb = getAuthenticatedDb(session.access_token)
+    
     // Try to get profile from database first
     let userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
     
     if (!userProfile) {
-      // Profile doesn't exist, try to create it manually
+      // Profile doesn't exist, try to create it manually using authenticated client
       console.log('User profile not found, creating manually...')
       
       // Manually create the user profile
@@ -65,8 +74,8 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
         streak_count: 1
       }
       
-      // Insert the profile directly
-      const { data: createdProfile, error: insertError } = await db
+      // Insert the profile directly using authenticated client
+      const { data: createdProfile, error: insertError } = await authDb
         .from('user_profiles')
         .insert(profileData)
         .select()
@@ -250,6 +259,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true)
       await AuthService.signOut()
+      
+      // Reset database client to use anon key
+      updateDbHeaders(supabaseAnonKey)
+      
       // User state will be updated via the auth state change listener
     } catch (error: any) {
       setIsLoading(false)

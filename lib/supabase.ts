@@ -55,6 +55,31 @@ export const db = new PostgrestClient(`${supabaseUrl}/rest/v1`, {
   fetch,
 })
 
+// Function to get authenticated database client
+export const getAuthenticatedDb = (accessToken?: string) => {
+  if (accessToken) {
+    return new PostgrestClient(`${supabaseUrl}/rest/v1`, {
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      fetch,
+    })
+  }
+  return db
+}
+
+// Function to update database client headers with user token
+export const updateDbHeaders = (accessToken: string) => {
+  // Update the global db client headers
+  if (db && accessToken) {
+    db.headers = {
+      ...db.headers,
+      Authorization: `Bearer ${accessToken}`,
+    }
+  }
+}
+
 // Compatibility wrapper for existing code
 export const supabase = {
   auth,
