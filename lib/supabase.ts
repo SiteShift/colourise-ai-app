@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
 
 const supabaseUrl = 'https://wnkxqkesotshizqedmxw.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5NzgzNzEsImV4cCI6MjA2MzU1NDM3MX0.QqhqSlN1RSMY_YyqMHDtFxRD3EBKM4WJt8RI0TH8Wig'
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODAwOTEyNywiZXhwIjoyMDYzNTg1MTI3fQ.kdDePscBMUdq9KlmknoFzwpk4vpJVOqGoRu03Z7h9rQ'
 
 // Use Expo's secure storage for auth tokens
 const ExpoSecureStoreAdapter = {
