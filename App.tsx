@@ -1,4 +1,10 @@
 import 'react-native-gesture-handler';
+// Import polyfills first to ensure Node.js compatibility
+import 'react-native-get-random-values';
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
+global.process = require('process');
+import React from 'react';
 import { NavigationContainer } from "@react-navigation/native"
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack'
 import { StatusBar } from "expo-status-bar"
@@ -12,6 +18,7 @@ import { AuthProvider, useAuth } from "./context/auth-context"
 import { ApiProvider } from "./context/api-context"
 import { SubscriptionProvider } from "./context/subscription-context"
 import { ThemeProvider } from "./components/theme-provider"
+import { ErrorBoundary } from "./components/error-boundary"
 
 const Stack = createStackNavigator()
 
@@ -54,17 +61,19 @@ function Navigation() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <ThemeProvider defaultTheme="system">
-        <ApiProvider>
-          <AuthProvider>
-            <SubscriptionProvider>
-              <Navigation />
-              <StatusBar style="light" />
-            </SubscriptionProvider>
-          </AuthProvider>
-        </ApiProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeProvider defaultTheme="system">
+          <ApiProvider>
+            <AuthProvider>
+              <SubscriptionProvider>
+                <Navigation />
+                <StatusBar style="light" />
+              </SubscriptionProvider>
+            </AuthProvider>
+          </ApiProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   )
 }

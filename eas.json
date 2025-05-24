@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 7.8.0"
+    "version": ">= 7.8.0",
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -8,20 +9,39 @@
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "resourceClass": "medium"
       }
     },
     "preview": {
       "distribution": "internal",
+      "cache": {
+        "disabled": true
+      },
+      "env": {
+        "NODE_ENV": "production"
+      },
       "ios": {
         "resourceClass": "m-medium"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "resourceClass": "medium"
       }
     },
     "production": {
+      "cache": {
+        "disabled": true
+      },
+      "env": {
+        "NODE_ENV": "production"
+      },
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "resourceClass": "medium"
       }
     }
   },
