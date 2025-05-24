@@ -1,6 +1,6 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { auth } from "../lib/supabase"
+import { auth, db } from "../lib/supabase"
 import { AuthService } from "../lib/auth-service"
 import { DatabaseService } from "../lib/database-service"
 import type { Session, User as SupabaseUser } from "@supabase/gotrue-js"
@@ -46,20 +46,57 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
     let userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
     
     if (!userProfile) {
-      // Profile will be created automatically by the database trigger
-      // Wait a moment and try again
-      console.log('User profile not found, waiting for automatic creation...')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
+      // Profile doesn't exist, try to create it manually
+      console.log('User profile not found, creating manually...')
       
-      if (!userProfile) {
-        // Still no profile, something went wrong
-        throw new Error('Failed to create user profile in database')
+      // Manually create the user profile
+      const profileData = {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        full_name: supabaseUser.user_metadata?.full_name || 
+                  supabaseUser.user_metadata?.name || 
+                  supabaseUser.email?.split("@")[0] || 
+                  "User",
+        avatar_url: supabaseUser.user_metadata?.avatar_url || 
+                   supabaseUser.user_metadata?.picture || 
+                   null,
+        credits: 10,
+        last_active_date: new Date().toISOString().split('T')[0],
+        streak_count: 1
+      }
+      
+      // Insert the profile directly
+      const { data: createdProfile, error: insertError } = await db
+        .from('user_profiles')
+        .insert(profileData)
+        .select()
+        .single()
+      
+      if (insertError) {
+        console.error('Error creating user profile manually:', insertError)
+        // If insert fails due to conflict (profile already exists), try to get it again
+        if (insertError.code === '23505') {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
+        }
+        
+        if (!userProfile) {
+          throw new Error(`Database error saving new user: ${insertError.message}`)
+        }
+      } else {
+        userProfile = createdProfile
       }
     }
     
-    // Record user login activity
-    await DatabaseService.recordUserActivity(supabaseUser.id, 'login')
+    // At this point userProfile should definitely exist
+    if (!userProfile) {
+      throw new Error('Failed to create or retrieve user profile')
+    }
+    
+    // Record user login activity (non-blocking)
+    DatabaseService.recordUserActivity(supabaseUser.id, 'login').catch(error => {
+      console.warn('Failed to record user activity:', error)
+    })
     
     return {
       id: supabaseUser.id,
@@ -76,7 +113,7 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
     // Fallback to basic user info if database fails
     return {
       id: supabaseUser.id,
-      name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split("@")[0] || "User",
+      name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "User",
       email: supabaseUser.email || "",
       avatar: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
       createdAt: new Date(supabaseUser.created_at),
