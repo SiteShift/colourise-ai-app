@@ -150,30 +150,43 @@ const ProTipsSection = React.memo(() => (
   </View>
 ));
 
-// Credit package options
+// Credit package options - Highly converting packages with psychological pricing
 const CREDIT_PACKAGES = [
   {
     id: '1',
-    credits: 10,
-    price: 4.99,
+    credits: 20,
+    price: 2.49,
+    originalPrice: 4.99,
     popular: false,
-    description: 'Perfect for small projects'
+    description: 'Perfect for trying our AI magic',
+    features: ['20 colorizations', 'Basic enhancements', 'Save to gallery'],
+    savings: null,
+    badge: 'STARTER',
+    valueText: 'Great for beginners'
   },
   {
     id: '2',
-    credits: 25,
-    price: 9.99,
+    credits: 70,
+    price: 6.49,
+    originalPrice: 17.49,
     popular: true,
-    description: 'Most popular choice',
-    savings: '20% savings'
+    description: 'Most popular - Best value!',
+    features: ['70 colorizations', 'All premium features', 'Priority processing', '20 bonus credits'],
+    savings: '63% OFF',
+    badge: 'BEST VALUE',
+    valueText: 'Save £11 vs individual'
   },
   {
     id: '3',
-    credits: 50,
-    price: 16.99,
+    credits: 250,
+    price: 15.99,
+    originalPrice: 62.49,
     popular: false,
-    description: 'Best value for bulk projects',
-    savings: '32% savings'
+    description: 'For power users & professionals',
+    features: ['250 colorizations', 'All premium features', 'Priority support', '100 bonus credits'],
+    savings: '74% OFF',
+    badge: 'PROFESSIONAL',
+    valueText: 'Save £46.50 vs individual'
   }
 ];
 
@@ -382,7 +395,6 @@ export default function TransformScreen() {
   const [scrollEnabled, setScrollEnabled] = useState(true)
   const [containerWidth, setContainerWidth] = useState(width - 40)
   const [sliderAnimationComplete, setSliderAnimationComplete] = useState(false)
-  const [credits, setCredits] = useState(99) // Initial credits
   const [selectedPremiumFeature, setSelectedPremiumFeature] = useState<string | null>(null)
   const [exampleModalVisible, setExampleModalVisible] = useState(false)
   const [selectedExample, setSelectedExample] = useState<typeof FEATURED_EXAMPLES[0] | null>(null)
@@ -395,9 +407,30 @@ export default function TransformScreen() {
   // Add state for AI Scene Builder modal
   const [showAISceneBuilderModal, setShowAISceneBuilderModal] = useState(false);
   
-  const { user } = useAuth()
+  const { user, setUser } = useAuth()
   const { isPremium } = useSubscription()
   const navigation = useNavigation()
+  
+  // Get credits from user context
+  const [credits, setCredits] = useState(user?.credits || 5)
+  
+  // Sync credits with user context
+  useEffect(() => {
+    if (user?.credits !== undefined) {
+      setCredits(user.credits);
+    }
+  }, [user?.credits]);
+  
+  // Helper function to update credits both locally and in user context
+  const updateCredits = (newCredits: number) => {
+    setCredits(newCredits);
+    if (user) {
+      setUser({
+        ...user,
+        credits: newCredits
+      });
+    }
+  };
   
   // Add these state variables for slider interaction in examples
   const [exampleScrollEnabled, setExampleScrollEnabled] = useState(true);
@@ -629,7 +662,7 @@ export default function TransformScreen() {
       
       setColorizedImage(colorizedUrl)
       // Deduct a credit after successful colorization
-      setCredits(prevCredits => prevCredits - 1)
+      updateCredits(credits - 1)
       
       // Prepare and prefetch the colorized image
       await prepareColorizedImage(colorizedUrl);
@@ -688,7 +721,7 @@ export default function TransformScreen() {
       
       setColorizedImage(colorizedUrl);
       // Deduct 1 credit for basic colorization
-      setCredits(prevCredits => prevCredits - 1);
+      updateCredits(credits - 1);
       
       // Prepare the colorized image - this keeps isProcessing true until done
       await prepareColorizedImage(colorizedUrl);
@@ -1313,7 +1346,7 @@ export default function TransformScreen() {
       }
       
       // Deduct credits
-      setCredits(prev => prev - feature.credits);
+      updateCredits(credits - feature.credits);
       
       // Success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1395,7 +1428,7 @@ export default function TransformScreen() {
       setOriginalColorizedUri(colorizedImage);
       
       // Deduct credits
-      setCredits(prev => prev - 10);
+      updateCredits(credits - 10);
       
       // Success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1971,7 +2004,7 @@ export default function TransformScreen() {
                 onPress={closeCreditsModal}
                 style={styles.closeButton}
               >
-                <Feather name="x" size={24} color="#1e293b" />
+                <Feather name="x" size={20} color="#64748b" />
               </TouchableOpacity>
               <Text style={styles.creditsModalTitle}>Get More Credits</Text>
               <View style={styles.closeButton} />
@@ -1982,7 +2015,7 @@ export default function TransformScreen() {
               showsVerticalScrollIndicator={false}
             >
               <Text style={styles.creditsModalSubtitle}>
-                Choose a credit package to enhance and colorize more photos
+                Unlock the full power of our AI models
               </Text>
 
               {CREDIT_PACKAGES.map((pkg) => (
@@ -1991,55 +2024,69 @@ export default function TransformScreen() {
                   style={[
                     styles.creditPackage,
                     selectedPackage === pkg.id && styles.selectedPackage,
-                    pkg.popular && styles.popularPackage,
                   ]}
                   onPress={() => setSelectedPackage(pkg.id)}
                 >
-                  {pkg.popular && (
+                  {/* Popular badge - only show when not selected */}
+                  {pkg.popular && selectedPackage !== pkg.id && (
                     <View style={styles.popularBadge}>
-                      <Text style={styles.popularBadgeText}>Most Popular</Text>
+                      <Text style={styles.popularBadgeText}>POPULAR</Text>
                     </View>
                   )}
-                  <View style={styles.packageHeader}>
-                    <View style={styles.packageCredits}>
-                      <ExpoImage 
-                        source={STATIC_ASSETS.diamond}
-                        style={styles.packageDiamond}
-                        contentFit="contain"
-                        cachePolicy="memory-disk"
-                        priority="high"
-                      />
-                      <Text style={styles.packageCreditsText}>{pkg.credits}</Text>
+
+                  {/* Main content - clean layout */}
+                  <View style={styles.packageContent}>
+                    <View style={styles.packageLeft}>
+                      <View style={styles.creditsRow}>
+                        <ExpoImage 
+                          source={STATIC_ASSETS.diamond}
+                          style={styles.packageDiamond}
+                          contentFit="contain"
+                          cachePolicy="memory-disk"
+                          priority="high"
+                        />
+                        <Text style={styles.packageCreditsText}>{pkg.credits}</Text>
+                      </View>
+                      <Text style={styles.packageDescription}>{pkg.description}</Text>
                     </View>
-                    <Text style={styles.packagePrice}>${pkg.price}</Text>
+                    
+                    <View style={styles.packageRight}>
+                      {pkg.originalPrice && (
+                        <Text style={styles.packageOriginalPrice}>£{pkg.originalPrice}</Text>
+                      )}
+                      <Text style={styles.packagePrice}>£{pkg.price}</Text>
+                      {pkg.savings && (
+                        <View style={styles.savingsBadge}>
+                          <Text style={styles.packageSavings}>{pkg.savings}</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                  <Text style={styles.packageDescription}>{pkg.description}</Text>
-                  {pkg.savings && (
-                    <Text style={styles.packageSavings}>{pkg.savings}</Text>
-                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <TouchableOpacity
-              style={[
-                styles.purchaseButton,
-                !selectedPackage && styles.purchaseButtonDisabled
-              ]}
-              onPress={() => selectedPackage && handlePurchaseCredits(selectedPackage)}
-              disabled={!selectedPackage}
-            >
-              <LinearGradient
-                colors={['#FF3B8B', '#A537FD', '#38B8F2']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.purchaseGradient}
+            <View style={styles.purchaseButtonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.purchaseButton,
+                  !selectedPackage && styles.purchaseButtonDisabled
+                ]}
+                onPress={() => selectedPackage && handlePurchaseCredits(selectedPackage)}
+                disabled={!selectedPackage}
               >
-                <Text style={styles.purchaseButtonText}>
-                  Purchase Credits
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={['#FF3B8B', '#A537FD', '#38B8F2']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.purchaseGradient}
+                >
+                  <Text style={styles.purchaseButtonText}>
+                    {selectedPackage ? `Get ${CREDIT_PACKAGES.find(p => p.id === selectedPackage)?.credits} Credits` : 'Select Package'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </Animated.View>
       </Modal>
@@ -2833,7 +2880,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f1f5f9',
   },
   creditsModalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: '#1e293b',
     textAlign: 'center',
@@ -2842,64 +2889,89 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#64748b',
     textAlign: 'center',
+    fontWeight: '500',
     marginTop: 16,
+    marginBottom: 32,
+    paddingHorizontal: 20,
+  },
+  creditsModalPromo: {
+    fontSize: 14,
+    color: '#f59e0b',
+    textAlign: 'center',
+    fontWeight: '600',
     marginBottom: 24,
     paddingHorizontal: 20,
   },
   creditsPackagesList: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   creditPackage: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 12,
+    marginBottom: 16,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#f1f5f9',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   selectedPackage: {
     borderColor: '#6366f1',
-    backgroundColor: '#f5f3ff',
+    backgroundColor: '#fefbff',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   popularPackage: {
-    backgroundColor: '#fff',
     borderColor: '#6366f1',
+    backgroundColor: '#fefbff',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   popularBadge: {
     position: 'absolute',
-    top: -12,
-    right: 20,
+    top: -1,
+    left: -1,
     backgroundColor: '#6366f1',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderTopLeftRadius: 14,
+    borderBottomRightRadius: 14,
   },
   popularBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  packageHeader: {
+  packageContent: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
   },
-  packageCredits: {
+  packageLeft: {
+    flex: 1,
+  },
+  creditsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 4,
   },
   packageDiamond: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
+    marginRight: 8,
   },
   packageCreditsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4338ca',
-  },
-  packagePrice: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1e293b',
@@ -2907,17 +2979,62 @@ const styles = StyleSheet.create({
   packageDescription: {
     fontSize: 14,
     color: '#64748b',
-    marginTop: 4,
+    fontWeight: '500',
+  },
+  packageRight: {
+    alignItems: 'flex-end',
+  },
+  packageOriginalPrice: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textDecorationLine: 'line-through',
+    marginBottom: 2,
+  },
+  packagePrice: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  savingsBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   packageSavings: {
-    fontSize: 13,
-    color: '#6366f1',
-    fontWeight: '600',
+    fontSize: 10,
+    color: '#16a34a',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  creditsModalFooter: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
     marginTop: 8,
   },
+  creditsModalFooterText: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  purchaseButtonContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 16,
+  },
   purchaseButton: {
-    margin: 20,
-    borderRadius: 12,
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
     overflow: 'hidden',
   },
   purchaseButtonDisabled: {
@@ -2925,8 +3042,10 @@ const styles = StyleSheet.create({
   },
   purchaseGradient: {
     paddingVertical: 16,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 16,
   },
   purchaseButtonText: {
     color: 'white',

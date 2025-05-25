@@ -65,7 +65,7 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
         avatar_url: supabaseUser.user_metadata?.avatar_url || 
                    supabaseUser.user_metadata?.picture || 
                    null,
-        credits: 10,
+        credits: 5,
         last_active_date: new Date().toISOString().split('T')[0],
         streak_count: 1
       }
@@ -104,7 +104,7 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
       email: supabaseUser.email || "",
       avatar: userProfile.avatar_url || supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
       createdAt: new Date(supabaseUser.created_at),
-      credits: userProfile.credits || 10,
+      credits: userProfile.credits || 5,
       lastActive: [new Date()], // Will be loaded from user_activity table if needed
       images: [] // Will be loaded separately via DatabaseService.getUserImages()
     }
@@ -117,7 +117,7 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
       email: supabaseUser.email || "",
       avatar: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
       createdAt: new Date(supabaseUser.created_at),
-      credits: 10,
+      credits: 5,
       lastActive: [new Date()],
       images: []
     }

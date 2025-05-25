@@ -104,6 +104,22 @@ export const CloudinaryService = {
     try {
       console.log(`Starting ${isHdUpscaler ? '4K upscaler' : 'face enhancement'} process`);
       
+      // Check image dimensions before uploading for 4K upscaler
+      if (isHdUpscaler) {
+        try {
+          // Get image info to check dimensions
+          const fileInfo = await FileSystem.getInfoAsync(imageUri);
+          if (fileInfo.exists && fileInfo.size) {
+            // If file is larger than 8MB, it's likely already high resolution
+            if (fileInfo.size > 8 * 1024 * 1024) {
+              throw new Error("Image is already high resolution and cannot be upscaled further. Try using a smaller or lower resolution image.");
+            }
+          }
+        } catch (sizeError) {
+          console.warn("Could not check image size, proceeding with upload:", sizeError);
+        }
+      }
+      
       // Upload the image to Cloudinary
       const uploadResult = await CloudinaryService.uploadImage(imageUri);
       
@@ -112,6 +128,16 @@ export const CloudinaryService = {
       }
       
       console.log('Upload successful, public_id:', uploadResult.public_id);
+      
+      // Additional check for 4K upscaler based on uploaded image dimensions
+      if (isHdUpscaler && uploadResult.width && uploadResult.height) {
+        const megapixels = (uploadResult.width * uploadResult.height) / 1000000;
+        console.log(`Image dimensions: ${uploadResult.width}x${uploadResult.height} (${megapixels.toFixed(1)} MP)`);
+        
+        if (megapixels > 4.2) {
+          throw new Error(`Image is too large for 4K upscaling (${megapixels.toFixed(1)} megapixels). The maximum supported size is 4.2 megapixels. Try using Face Enhancement instead, which works with larger images.`);
+        }
+      }
       
       // Apply upscale effect
       const enhancedUrl = CloudinaryService.applyUpscaleEffect(uploadResult.public_id);
@@ -132,6 +158,10 @@ export const CloudinaryService = {
       console.log('Download result:', JSON.stringify(enhancedLocalUri));
       
       if (enhancedLocalUri.status !== 200 || !enhancedLocalUri.uri) {
+        // Provide more specific error message for 4K upscaler
+        if (isHdUpscaler && enhancedLocalUri.status === 400) {
+          throw new Error("Image is too large for 4K upscaling. Try using Face Enhancement instead, which works with larger images.");
+        }
         throw new Error(`Failed to download enhanced image: ${enhancedLocalUri.status}`);
       }
       

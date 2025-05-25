@@ -17,7 +17,8 @@ import {
   ImageBackground,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  Easing
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Feather, Ionicons } from "@expo/vector-icons"
@@ -30,6 +31,7 @@ import { LinearGradient } from "expo-linear-gradient"
 import { useNavigation } from "@react-navigation/native"
 import { StackNavigationProp } from "@react-navigation/stack"
 import { GalleryService } from "../lib/gallery-service"
+import { Image as ExpoImage } from 'expo-image'
 
 const { width } = Dimensions.get("window")
 const HEADER_MAX_HEIGHT = 200
@@ -39,6 +41,46 @@ const PROFILE_IMAGE_MIN_SIZE = 40
 
 // Negative margin to pull profile info up closer to the profile picture
 const PROFILE_INFO_NEGATIVE_MARGIN = -50
+
+// Credit package options - Same as transform screen
+const CREDIT_PACKAGES = [
+  {
+    id: '1',
+    credits: 20,
+    price: 2.49,
+    originalPrice: 4.99,
+    popular: false,
+    description: 'Perfect for trying our AI magic',
+    features: ['20 colorizations', 'Basic enhancements', 'Save to gallery'],
+    savings: null,
+    badge: 'STARTER',
+    valueText: 'Great for beginners'
+  },
+  {
+    id: '2',
+    credits: 70,
+    price: 6.49,
+    originalPrice: 17.49,
+    popular: true,
+    description: 'Most popular - Best value!',
+    features: ['70 colorizations', 'All premium features', 'Priority processing', '20 bonus credits'],
+    savings: '63% OFF',
+    badge: 'BEST VALUE',
+    valueText: 'Save £11 vs individual'
+  },
+  {
+    id: '3',
+    credits: 250,
+    price: 15.99,
+    originalPrice: 62.49,
+    popular: false,
+    description: 'For power users & professionals',
+    features: ['250 colorizations', 'All premium features', 'Priority support', '100 bonus credits'],
+    savings: '74% OFF',
+    badge: 'PROFESSIONAL',
+    valueText: 'Save £46.50 vs individual'
+  }
+];
 
 // Define the navigation types
 type ProfileStackParamList = {
@@ -64,6 +106,8 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState(false)
   const [showCreditsModal, setShowCreditsModal] = useState(false)
   const [galleryImageCount, setGalleryImageCount] = useState(0)
+  const [selectedPackage, setSelectedPackage] = useState<string | null>(null)
+  const fadeAnim = useRef(new Animated.Value(0)).current
   
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current
@@ -102,15 +146,6 @@ export default function ProfileScreen() {
           GalleryService.clearCache()
           const images = await GalleryService.getAllImages(user.id, isPremium)
           setGalleryImageCount(images.length)
-          
-          // Set test credits to 99 for testing
-          if (user.credits !== 99) {
-            const updatedUser = {
-              ...user,
-              credits: 99
-            }
-            setUser(updatedUser)
-          }
         } catch (error) {
           console.error("Error loading gallery count:", error)
         }
@@ -127,7 +162,7 @@ export default function ProfileScreen() {
   const colorisationCount = galleryImageCount
   
   // Credits count from user object
-  const creditsCount = user?.credits || 99 // Default to 99 for testing
+  const creditsCount = user?.credits || 5 // Default to 5
   
   // Calculate user streak from lastActive dates
   const calculateUserStreak = () => {
@@ -183,6 +218,18 @@ export default function ProfileScreen() {
   }
   
   const userStreak = calculateUserStreak()
+
+  // Animation for modal opening
+  useEffect(() => {
+    if (showCreditsModal) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showCreditsModal]);
 
   // Extended updateProfile function to handle credits
   const updateProfileWithCredits = (data: { 
@@ -252,137 +299,149 @@ export default function ProfileScreen() {
   }
 
   // Handle credits purchase
-  const handlePurchaseCredits = async (packageId: string, amount: number) => {
-    setIsLoading(true)
-    try {
-      const success = await purchaseCredits(packageId)
-      if (success && user) {
-        // Update user object with new credits
-        const newCreditAmount = (user.credits || 0) + amount
-        updateProfileWithCredits({ 
-          name: user.name,
-          avatar: user.avatar,
-          credits: newCreditAmount
-        })
-        setShowCreditsModal(false)
-        Alert.alert("Success", `You've purchased ${amount} credits!`)
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to complete the purchase. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const handlePurchaseCredits = async (packageId: string) => {
+    // TODO: Implement actual purchase logic
+    Alert.alert('Purchase Credits', 'Payment integration coming soon!');
+  };
+
+  const closeCreditsModal = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 250,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => setShowCreditsModal(false));
+  };
 
   // Render credits modal
   const renderCreditsModal = () => (
     <Modal
       visible={showCreditsModal}
       transparent
-      animationType="fade"
+      animationType="none"
       statusBarTranslucent
-      onRequestClose={() => setShowCreditsModal(false)}
+      onRequestClose={closeCreditsModal}
     >
-      <BlurView intensity={30} style={styles.modalBlur}>
-        <View style={styles.creditsModalContainer}>
+      <Animated.View 
+        style={[
+          styles.modalOverlay,
+          {
+            opacity: fadeAnim,
+          }
+        ]}
+      >
+        <BlurView
+          tint="dark"
+          intensity={30}
+          style={StyleSheet.absoluteFill}
+        />
+        <TouchableOpacity 
+          style={StyleSheet.absoluteFill}
+          onPress={closeCreditsModal}
+        />
+        <Animated.View 
+          style={[
+            styles.creditsModalContent,
+            {
+              transform: [{
+                translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [20, 0],
+                })
+              }]
+            }
+          ]}
+        >
           <View style={styles.creditsModalHeader}>
-            <View style={styles.closeButtonSpacer} />
-            <Text style={styles.creditsModalTitle}>Get More Credits</Text>
             <TouchableOpacity 
-              onPress={() => setShowCreditsModal(false)}
+              onPress={closeCreditsModal}
               style={styles.closeButton}
             >
-              <Feather name="x" size={24} color="#1e293b" />
+              <Feather name="x" size={20} color="#64748b" />
             </TouchableOpacity>
+            <Text style={styles.creditsModalTitle}>Get More Credits</Text>
+            <View style={styles.closeButton} />
           </View>
-          
-          <Text style={styles.creditsModalSubtitle}>
-            Choose a credit package to enhance and colorize more photos
-          </Text>
-          
-          <View style={styles.creditPackagesList}>
-            <TouchableOpacity 
-              style={styles.creditPackage}
-              onPress={() => handlePurchaseCredits("small_package", 10)}
-              disabled={isLoading}
-            >
-              <View style={styles.packageHeader}>
-                <View style={styles.packageCredits}>
-                  <Image 
-                    source={require('../assets/diamond (1).png')}
-                    style={styles.packageDiamond}
-                  />
-                  <Text style={styles.packageCreditsText}>10</Text>
-                </View>
-                <Text style={styles.packagePrice}>$4.99</Text>
-              </View>
-              <Text style={styles.packageDescription}>Perfect for small projects</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.creditPackage, styles.popularPackage]}
-              onPress={() => handlePurchaseCredits("medium_package", 25)}
-              disabled={isLoading}
-            >
-              <View style={styles.popularBadge}>
-                <Text style={styles.popularBadgeText}>Most Popular</Text>
-              </View>
-              <View style={styles.packageHeader}>
-                <View style={styles.packageCredits}>
-                  <Image 
-                    source={require('../assets/diamond (1).png')}
-                    style={styles.packageDiamond}
-                  />
-                  <Text style={styles.packageCreditsText}>25</Text>
-                </View>
-                <Text style={styles.packagePrice}>$9.99</Text>
-              </View>
-              <Text style={styles.packageDescription}>Most popular choice</Text>
-              <Text style={styles.packageSavings}>20% savings</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.creditPackage}
-              onPress={() => handlePurchaseCredits("large_package", 50)}
-              disabled={isLoading}
-            >
-              <View style={styles.packageHeader}>
-                <View style={styles.packageCredits}>
-                  <Image 
-                    source={require('../assets/diamond (1).png')}
-                    style={styles.packageDiamond}
-                  />
-                  <Text style={styles.packageCreditsText}>50</Text>
-                </View>
-                <Text style={styles.packagePrice}>$16.99</Text>
-              </View>
-              <Text style={styles.packageDescription}>Best value for bulk projects</Text>
-              <Text style={styles.packageSavings}>32% savings</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <TouchableOpacity 
-            style={styles.purchaseButton}
-            onPress={() => handlePurchaseCredits("medium_package", 25)}
-            disabled={isLoading}
+
+          <ScrollView 
+            style={styles.creditsPackagesList}
+            showsVerticalScrollIndicator={false}
           >
-            <LinearGradient
-              colors={['#FF3B8B', '#A537FD', '#38B8F2']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.purchaseGradient}
+            <Text style={styles.creditsModalSubtitle}>
+              Unlock the full power of our AI models
+            </Text>
+
+            {CREDIT_PACKAGES.map((pkg) => (
+              <TouchableOpacity
+                key={pkg.id}
+                style={[
+                  styles.creditPackage,
+                  selectedPackage === pkg.id && styles.selectedPackage,
+                ]}
+                onPress={() => setSelectedPackage(pkg.id)}
+              >
+                {/* Popular badge - only show when not selected */}
+                {pkg.popular && selectedPackage !== pkg.id && (
+                  <View style={styles.popularBadge}>
+                    <Text style={styles.popularBadgeText}>POPULAR</Text>
+                  </View>
+                )}
+
+                {/* Main content - clean layout */}
+                <View style={styles.packageContent}>
+                  <View style={styles.packageLeft}>
+                    <View style={styles.creditsRow}>
+                      <ExpoImage 
+                        source={require('../assets/diamond (1).png')}
+                        style={styles.packageDiamond}
+                        contentFit="contain"
+                        cachePolicy="memory-disk"
+                        priority="high"
+                      />
+                      <Text style={styles.packageCreditsText}>{pkg.credits}</Text>
+                    </View>
+                    <Text style={styles.packageDescription}>{pkg.description}</Text>
+                  </View>
+                  
+                  <View style={styles.packageRight}>
+                    {pkg.originalPrice && (
+                      <Text style={styles.packageOriginalPrice}>£{pkg.originalPrice}</Text>
+                    )}
+                    <Text style={styles.packagePrice}>£{pkg.price}</Text>
+                    {pkg.savings && (
+                      <View style={styles.savingsBadge}>
+                        <Text style={styles.packageSavings}>{pkg.savings}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={styles.purchaseButtonContainer}>
+            <TouchableOpacity
+              style={[
+                styles.purchaseButton,
+                !selectedPackage && styles.purchaseButtonDisabled
+              ]}
+              onPress={() => selectedPackage && handlePurchaseCredits(selectedPackage)}
+              disabled={!selectedPackage}
             >
-              {isLoading ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
+              <LinearGradient
+                colors={['#FF3B8B', '#A537FD', '#38B8F2']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.purchaseGradient}
+              >
                 <Text style={styles.purchaseButtonText}>
-                  Purchase Credits
+                  {selectedPackage ? `Get ${CREDIT_PACKAGES.find(p => p.id === selectedPackage)?.credits} Credits` : 'Select Package'}
                 </Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </BlurView>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   )
 
@@ -1025,7 +1084,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 16,
   },
-  creditsModalContainer: {
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  creditsModalContent: {
     width: width * 0.85,
     maxWidth: 400,
     borderRadius: 24,
@@ -1047,9 +1111,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
-  closeButtonSpacer: {
-    width: 24,
-  },
   closeButton: {
     padding: 4,
   },
@@ -1066,82 +1127,128 @@ const styles = StyleSheet.create({
     marginVertical: 24,
     paddingHorizontal: 24,
   },
-  creditPackagesList: {
+  creditsPackagesList: {
     paddingHorizontal: 20,
   },
   creditPackage: {
     backgroundColor: "#f8fafc",
     borderRadius: 16,
     padding: 20,
-    marginBottom: 12,
+    marginBottom: 16,
     borderWidth: 2,
     borderColor: "transparent",
+    position: "relative",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  popularPackage: {
-    backgroundColor: "#fff",
+  selectedPackage: {
+    backgroundColor: "#fefbff",
     borderColor: "#6366f1",
+    shadowColor: "#6366f1",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  popularBadge: {
-    position: "absolute",
-    top: -12,
-    right: "50%", 
-    transform: [{ translateX: 50 }],
-    backgroundColor: "#6366f1",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    zIndex: 1,
-  },
-  popularBadgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  packageHeader: {
+  packageContent: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
   },
-  packageCredits: {
+  packageLeft: {
+    flex: 1,
+  },
+  creditsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    marginBottom: 4,
   },
   packageDiamond: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
+    marginRight: 8,
   },
   packageCreditsText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#4338ca",
-  },
-  packagePrice: {
     fontSize: 24,
     fontWeight: "700",
     color: "#1e293b",
   },
   packageDescription: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#64748b",
-    marginTop: 4,
+    fontWeight: "500",
+  },
+  packageRight: {
+    alignItems: "flex-end",
+  },
+  packageOriginalPrice: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textDecorationLine: "line-through",
+    marginBottom: 2,
+  },
+  packagePrice: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#1e293b",
+    marginBottom: 4,
+  },
+  savingsBadge: {
+    backgroundColor: "#dcfce7",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   packageSavings: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6366f1",
-    marginTop: 8,
+    fontSize: 10,
+    color: "#16a34a",
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  popularBadge: {
+    position: "absolute",
+    top: -1,
+    left: -1,
+    backgroundColor: "#6366f1",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderTopLeftRadius: 14,
+    borderBottomRightRadius: 14,
+  },
+  popularBadgeText: {
+    color: "#ffffff",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  purchaseButtonContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 16,
   },
   purchaseButton: {
-    margin: 20,
-    borderRadius: 12,
-    overflow: "hidden",
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  purchaseButtonDisabled: {
+    opacity: 0.7,
   },
   purchaseGradient: {
     paddingVertical: 16,
+    width: '100%',
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: 16,
   },
   purchaseButtonText: {
     color: "white",

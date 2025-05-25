@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     email TEXT NOT NULL,
     full_name TEXT,
     avatar_url TEXT,
-    credits INTEGER DEFAULT 10 NOT NULL,
+    credits INTEGER DEFAULT 5 NOT NULL,
     last_active_date DATE DEFAULT CURRENT_DATE,
     streak_count INTEGER DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
