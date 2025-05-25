@@ -1,6 +1,6 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { supabase } from "../lib/supabase"
+import { supabase, getAuthenticatedDb } from "../lib/supabase"
 import { AuthService } from "../lib/auth-service"
 import { DatabaseService } from "../lib/database-service"
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
@@ -46,73 +46,70 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
     console.log('User ID:', supabaseUser.id)
     console.log('Email:', supabaseUser.email)
     
-    // Try to get profile from database first
-    let userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
+    // Get the access token from the session
+    const accessToken = session.access_token
+    
+    // Try to get profile from database first (with access token)
+    const authenticatedDb = getAuthenticatedDb(accessToken)
+    const { data: existingProfile, error: checkError } = await authenticatedDb
+      .from('user_profiles')
+      .select('*')
+      .eq('id', supabaseUser.id)
+      .maybeSingle()
+    
+    let userProfile = existingProfile
     console.log('Profile found:', !!userProfile)
     
     if (!userProfile) {
-      // Profile doesn't exist, try to create it manually
-      console.log('❌ Profile creation needed - no profile found')
+      console.log('🔧 Creating new profile')
       
-      // First, let's try a direct query to see if the profile actually exists
-      const { data: existingProfile, error: checkError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', supabaseUser.id)
-        .maybeSingle()
-      
-      if (existingProfile) {
-        console.log('✅ Profile actually exists, using it')
-        userProfile = existingProfile
-      } else {
-        console.log('🔧 Creating new profile')
-        
-        // Create the user profile using the unified client
-        const profileData = {
-          id: supabaseUser.id,
-          email: supabaseUser.email || '',
-          full_name: supabaseUser.user_metadata?.full_name || 
-                    supabaseUser.user_metadata?.name || 
-                    supabaseUser.email?.split("@")[0] || 
-                    "User",
-          avatar_url: supabaseUser.user_metadata?.avatar_url || 
-                     supabaseUser.user_metadata?.picture || 
-                     null,
-          credits: 5,
-          last_active_date: new Date().toISOString().split('T')[0],
-          streak_count: 1
-        }
-        
-        // Insert the profile using the unified client
-        const { data: createdProfile, error: insertError } = await supabase
-          .from('user_profiles')
-          .insert(profileData)
-          .select()
-          .single()
-        
-        if (insertError) {
-          console.error('Profile creation error:', insertError)
-          // If creation fails, fall back to the basic user info
-          console.log('⚠️ Using fallback user data due to profile creation failure')
-          return {
-            id: supabaseUser.id,
-            name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "User",
-            email: supabaseUser.email || "",
-            avatar: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
-            createdAt: new Date(supabaseUser.created_at),
-            credits: 5,
-            lastActive: [new Date()],
-            images: []
-          }
-        }
-        
-        userProfile = createdProfile
-        console.log('✅ Profile creation successful!')
+      // Create the user profile using the authenticated client
+      const profileData = {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        full_name: supabaseUser.user_metadata?.full_name || 
+                  supabaseUser.user_metadata?.name || 
+                  supabaseUser.email?.split("@")[0] || 
+                  "User",
+        avatar_url: supabaseUser.user_metadata?.avatar_url || 
+                   supabaseUser.user_metadata?.picture || 
+                   null,
+        credits: 5,
+        last_active_date: new Date().toISOString().split('T')[0],
+        streak_count: 1
       }
+      
+      // Insert the profile using the authenticated client
+      const { data: createdProfile, error: insertError } = await authenticatedDb
+        .from('user_profiles')
+        .insert(profileData)
+        .select()
+        .single()
+      
+      if (insertError) {
+        console.error('Profile creation error:', insertError)
+        // If creation fails, fall back to the basic user info
+        console.log('⚠️ Using fallback user data due to profile creation failure')
+        return {
+          id: supabaseUser.id,
+          name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "User",
+          email: supabaseUser.email || "",
+          avatar: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
+          createdAt: new Date(supabaseUser.created_at),
+          credits: 5,
+          lastActive: [new Date()],
+          images: []
+        }
+      }
+      
+      userProfile = createdProfile
+      console.log('✅ Profile creation successful!')
+    } else {
+      console.log('✅ Profile found, using existing profile')
     }
     
-    // Record user login activity (non-blocking)
-    DatabaseService.recordUserActivity(supabaseUser.id, 'login').catch(error => {
+    // Record user login activity (non-blocking, with access token)
+    DatabaseService.recordUserActivity(supabaseUser.id, 'login', accessToken).catch(error => {
       console.warn('Failed to record user activity:', error)
     })
     
