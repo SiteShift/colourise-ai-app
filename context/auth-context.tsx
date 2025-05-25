@@ -52,40 +52,63 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
     
     if (!userProfile) {
       // Profile doesn't exist, try to create it manually
-      console.log('❌ Profile creation failed - no profile found')
+      console.log('❌ Profile creation needed - no profile found')
       
-      // Create the user profile using the unified client
-      const profileData = {
-        id: supabaseUser.id,
-        email: supabaseUser.email || '',
-        full_name: supabaseUser.user_metadata?.full_name || 
-                  supabaseUser.user_metadata?.name || 
-                  supabaseUser.email?.split("@")[0] || 
-                  "User",
-        avatar_url: supabaseUser.user_metadata?.avatar_url || 
-                   supabaseUser.user_metadata?.picture || 
-                   null,
-        credits: 5,
-        last_active_date: new Date().toISOString().split('T')[0],
-        streak_count: 1
-      }
-      
-      console.log('🔧 Service role fallback - attempting profile creation')
-      
-      // Insert the profile using the unified client
-      const { data: createdProfile, error: insertError } = await supabase
+      // First, let's try a direct query to see if the profile actually exists
+      const { data: existingProfile, error: checkError } = await supabase
         .from('user_profiles')
-        .insert(profileData)
-        .select()
-        .single()
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .maybeSingle()
       
-      if (insertError) {
-        console.error('Profile creation error:', insertError)
-        throw new Error(`Database error saving new user: ${insertError.message}`)
+      if (existingProfile) {
+        console.log('✅ Profile actually exists, using it')
+        userProfile = existingProfile
+      } else {
+        console.log('🔧 Creating new profile')
+        
+        // Create the user profile using the unified client
+        const profileData = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          full_name: supabaseUser.user_metadata?.full_name || 
+                    supabaseUser.user_metadata?.name || 
+                    supabaseUser.email?.split("@")[0] || 
+                    "User",
+          avatar_url: supabaseUser.user_metadata?.avatar_url || 
+                     supabaseUser.user_metadata?.picture || 
+                     null,
+          credits: 5,
+          last_active_date: new Date().toISOString().split('T')[0],
+          streak_count: 1
+        }
+        
+        // Insert the profile using the unified client
+        const { data: createdProfile, error: insertError } = await supabase
+          .from('user_profiles')
+          .insert(profileData)
+          .select()
+          .single()
+        
+        if (insertError) {
+          console.error('Profile creation error:', insertError)
+          // If creation fails, fall back to the basic user info
+          console.log('⚠️ Using fallback user data due to profile creation failure')
+          return {
+            id: supabaseUser.id,
+            name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "User",
+            email: supabaseUser.email || "",
+            avatar: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
+            createdAt: new Date(supabaseUser.created_at),
+            credits: 5,
+            lastActive: [new Date()],
+            images: []
+          }
+        }
+        
+        userProfile = createdProfile
+        console.log('✅ Profile creation successful!')
       }
-      
-      userProfile = createdProfile
-      console.log('Profile creation successful!')
     }
     
     // Record user login activity (non-blocking)

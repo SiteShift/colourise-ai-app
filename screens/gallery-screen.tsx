@@ -282,18 +282,7 @@ export default function GalleryScreen() {
     index: number
   }) => {
     const scaleAnim = React.useRef(new Animated.Value(1)).current;
-    const opacityAnim = React.useRef(new Animated.Value(0)).current;
     const [imageError, setImageError] = useState(false);
-    
-    // Fade in animation
-    useEffect(() => {
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 400,
-        delay: index * 100,
-        useNativeDriver: true,
-      }).start();
-    }, []);
     
     const handlePressIn = () => {
       Animated.spring(scaleAnim, {
@@ -324,7 +313,6 @@ export default function GalleryScreen() {
     return (
       <Animated.View 
         style={{ 
-          opacity: opacityAnim,
           transform: [{ scale: scaleAnim }],
           width: itemWidth,
           margin: 5,
