@@ -1,4 +1,4 @@
-import { db } from './supabase'
+import { db, getAuthenticatedDb } from './supabase'
 
 // Types based on our database schema (Credits-Only Model)
 export interface UserProfile {
@@ -33,11 +33,8 @@ export interface CreditTransaction {
   user_id: string
   transaction_type: 'purchase' | 'usage' | 'bonus' | 'refund'
   credits_amount: number
-  credits_balance_after: number
-  description: string | null
-  related_image_id: string | null
-  purchase_package_id: string | null
-  transaction_reference: string | null
+  description: string
+  reference_id: string | null
   created_at: string
 }
 
@@ -62,14 +59,15 @@ export interface UserActivity {
   created_at: string
 }
 
-export const DatabaseService = {
+export class DatabaseService {
   // ========================================
   // USER PROFILE OPERATIONS
   // ========================================
   
-  async getUserProfile(userId: string): Promise<UserProfile | null> {
+  static async getUserProfile(userId: string, accessToken?: string): Promise<UserProfile | null> {
     try {
-      const { data, error } = await db
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
@@ -85,19 +83,35 @@ export const DatabaseService = {
       console.error('Error in getUserProfile:', error)
       return null
     }
-  },
+  }
 
-  async updateUserProfile(
-    userId: string, 
-    updates: Partial<Omit<UserProfile, 'id' | 'created_at' | 'updated_at'>>
-  ): Promise<UserProfile | null> {
+  static async createUserProfile(profile: Partial<UserProfile>, accessToken?: string): Promise<UserProfile | null> {
     try {
-      const { data, error } = await db
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
         .from('user_profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .insert([profile])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating user profile:', error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in createUserProfile:', error)
+      return null
+    }
+  }
+
+  static async updateUserProfile(userId: string, updates: Partial<UserProfile>, accessToken?: string): Promise<UserProfile | null> {
+    try {
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
+        .from('user_profiles')
+        .update(updates)
         .eq('id', userId)
         .select()
         .single()
@@ -112,19 +126,21 @@ export const DatabaseService = {
       console.error('Error in updateUserProfile:', error)
       return null
     }
-  },
+  }
 
   // ========================================
   // USER IMAGES OPERATIONS
   // ========================================
   
-  async getUserImages(userId: string): Promise<UserImage[]> {
+  static async getUserImages(userId: string, limit: number = 50, accessToken?: string): Promise<UserImage[]> {
     try {
-      const { data, error } = await db
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
         .from('user_images')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
+        .limit(limit)
       
       if (error) {
         console.error('Error fetching user images:', error)
@@ -136,13 +152,14 @@ export const DatabaseService = {
       console.error('Error in getUserImages:', error)
       return []
     }
-  },
+  }
 
-  async createUserImage(imageData: Omit<UserImage, 'id' | 'created_at' | 'updated_at'>): Promise<UserImage | null> {
+  static async createUserImage(imageData: Partial<UserImage>, accessToken?: string): Promise<UserImage | null> {
     try {
-      const { data, error } = await db
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
         .from('user_images')
-        .insert(imageData)
+        .insert([imageData])
         .select()
         .single()
       
@@ -156,19 +173,14 @@ export const DatabaseService = {
       console.error('Error in createUserImage:', error)
       return null
     }
-  },
+  }
 
-  async updateUserImage(
-    imageId: string, 
-    updates: Partial<Omit<UserImage, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
-  ): Promise<UserImage | null> {
+  static async updateUserImage(imageId: string, updates: Partial<UserImage>, accessToken?: string): Promise<UserImage | null> {
     try {
-      const { data, error } = await db
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
         .from('user_images')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(updates)
         .eq('id', imageId)
         .select()
         .single()
@@ -183,11 +195,12 @@ export const DatabaseService = {
       console.error('Error in updateUserImage:', error)
       return null
     }
-  },
+  }
 
-  async deleteUserImage(imageId: string): Promise<boolean> {
+  static async deleteUserImage(imageId: string, accessToken?: string): Promise<boolean> {
     try {
-      const { error } = await db
+      const client = getAuthenticatedDb(accessToken)
+      const { error } = await client
         .from('user_images')
         .delete()
         .eq('id', imageId)
@@ -202,91 +215,145 @@ export const DatabaseService = {
       console.error('Error in deleteUserImage:', error)
       return false
     }
-  },
+  }
 
   // ========================================
   // CREDIT OPERATIONS
   // ========================================
   
-  async useCredits(
-    userId: string, 
-    creditsToUse: number, 
-    description: string = 'Image processing',
-    imageId?: string
-  ): Promise<boolean> {
+  static async getUserCredits(userId: string, accessToken?: string): Promise<number> {
     try {
-      const { data, error } = await db.rpc('use_credits', {
-        p_user_id: userId,
-        p_credits_to_use: creditsToUse,
-        p_description: description,
-        p_image_id: imageId || null
-      })
-      
+      const profile = await this.getUserProfile(userId, accessToken)
+      return profile?.credits || 0
+    } catch (error) {
+      console.error('Error getting user credits:', error)
+      return 0
+    }
+  }
+
+  static async updateUserCredits(userId: string, newCredits: number, accessToken?: string): Promise<boolean> {
+    try {
+      const client = getAuthenticatedDb(accessToken)
+      const { error } = await client
+        .from('user_profiles')
+        .update({ credits: newCredits })
+        .eq('id', userId)
+
       if (error) {
-        console.error('Error using credits:', error)
+        console.error('Error updating user credits:', error)
         return false
       }
-      
-      return data === true
+
+      return true
     } catch (error) {
-      console.error('Error in useCredits:', error)
+      console.error('Error in updateUserCredits:', error)
       return false
     }
-  },
+  }
 
-  async addCredits(
-    userId: string, 
-    creditsToAdd: number, 
-    description: string = 'Credit purchase',
-    packageId?: string,
-    transactionRef?: string
-  ): Promise<boolean> {
+  static async deductCredits(userId: string, amount: number, description: string, accessToken?: string): Promise<boolean> {
     try {
-      const { data, error } = await db.rpc('add_credits', {
-        p_user_id: userId,
-        p_credits_to_add: creditsToAdd,
-        p_description: description,
-        p_package_id: packageId || null,
-        p_transaction_ref: transactionRef || null
-      })
+      const currentCredits = await this.getUserCredits(userId, accessToken)
       
-      if (error) {
-        console.error('Error adding credits:', error)
+      if (currentCredits < amount) {
+        console.error('Insufficient credits')
         return false
       }
-      
-      return data === true
+
+      const newCredits = currentCredits - amount
+      const success = await this.updateUserCredits(userId, newCredits, accessToken)
+
+      if (success) {
+        // Record the transaction
+        await this.recordCreditTransaction(userId, 'usage', -amount, description, null, accessToken)
+      }
+
+      return success
+    } catch (error) {
+      console.error('Error in deductCredits:', error)
+      return false
+    }
+  }
+
+  static async addCredits(userId: string, amount: number, description: string, referenceId?: string, accessToken?: string): Promise<boolean> {
+    try {
+      const currentCredits = await this.getUserCredits(userId, accessToken)
+      const newCredits = currentCredits + amount
+      const success = await this.updateUserCredits(userId, newCredits, accessToken)
+
+      if (success) {
+        // Record the transaction
+        await this.recordCreditTransaction(userId, 'purchase', amount, description, referenceId || null, accessToken)
+      }
+
+      return success
     } catch (error) {
       console.error('Error in addCredits:', error)
       return false
     }
-  },
+  }
 
-  async getCreditHistory(userId: string): Promise<CreditTransaction[]> {
+  static async recordCreditTransaction(
+    userId: string,
+    type: CreditTransaction['transaction_type'],
+    amount: number,
+    description: string,
+    referenceId: string | null,
+    accessToken?: string
+  ): Promise<CreditTransaction | null> {
     try {
-      const { data, error } = await db
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
+        .from('credit_transactions')
+        .insert([{
+          user_id: userId,
+          transaction_type: type,
+          credits_amount: amount,
+          description,
+          reference_id: referenceId,
+        }])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error recording credit transaction:', error)
+        return null
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in recordCreditTransaction:', error)
+      return null
+    }
+  }
+
+  static async getCreditTransactions(userId: string, limit: number = 50, accessToken?: string): Promise<CreditTransaction[]> {
+    try {
+      const client = getAuthenticatedDb(accessToken)
+      const { data, error } = await client
         .from('credit_transactions')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-      
+        .limit(limit)
+
       if (error) {
-        console.error('Error fetching credit history:', error)
+        console.error('Error fetching credit transactions:', error)
         return []
       }
-      
+
       return data || []
     } catch (error) {
-      console.error('Error in getCreditHistory:', error)
+      console.error('Error in getCreditTransactions:', error)
       return []
     }
-  },
+  }
 
   // ========================================
   // CREDIT PACKAGES
   // ========================================
   
-  async getCreditPackages(): Promise<CreditPackage[]> {
+  static async getCreditPackages(): Promise<CreditPackage[]> {
     try {
       const { data, error } = await db
         .from('credit_packages')
@@ -304,48 +371,37 @@ export const DatabaseService = {
       console.error('Error in getCreditPackages:', error)
       return []
     }
-  },
+  }
 
   // ========================================
   // USER ACTIVITY & STREAKS
   // ========================================
   
-  async recordUserActivity(
-    userId: string, 
-    activityType: UserActivity['activity_type'],
-    metadata: Record<string, any> = {}
-  ): Promise<boolean> {
+  static async recordUserActivity(userId: string, activityType: string, accessToken?: string): Promise<void> {
     try {
-      const { error } = await db
-        .from('user_activity')
-        .insert({
-          user_id: userId,
-          activity_type: activityType,
-          metadata,
-          activity_date: new Date().toISOString().split('T')[0] // Just the date part
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Update last active date and potentially streak
+      const client = getAuthenticatedDb(accessToken)
+      await client
+        .from('user_profiles')
+        .update({ 
+          last_active_date: today,
+          updated_at: new Date().toISOString()
         })
-      
-      if (error) {
-        // Ignore duplicate errors (user already active today)
-        if (error.code === '23505') {
-          return true
-        }
-        console.error('Error recording user activity:', error)
-        return false
-      }
-      
-      return true
+        .eq('id', userId)
+
+      console.log(`Recorded ${activityType} activity for user ${userId}`)
     } catch (error) {
-      console.error('Error in recordUserActivity:', error)
-      return false
+      console.error('Error recording user activity:', error)
     }
-  },
+  }
 
   // ========================================
   // ANALYTICS & STATS
   // ========================================
   
-  async getUserStats(userId: string) {
+  static async getUserStats(userId: string) {
     try {
       const { data, error } = await db
         .from('user_stats')

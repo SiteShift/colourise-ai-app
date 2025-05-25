@@ -1,12 +1,9 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { auth, db, updateDbHeaders, getAuthenticatedDb } from "../lib/supabase"
+import { supabase } from "../lib/supabase"
 import { AuthService } from "../lib/auth-service"
 import { DatabaseService } from "../lib/database-service"
-import type { Session, User as SupabaseUser } from "@supabase/gotrue-js"
-
-// Import the anon key for resetting
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgwMDkxMjcsImV4cCI6MjA2MzU4NTEyN30.m-cl-q_2KAFDi6S-d22ivr6L-YppSXM4BI-00iG6R0Q'
+import type { Session, User as SupabaseUser } from "@supabase/supabase-js"
 
 // Define a type for user images
 type UserImage = {
@@ -45,30 +42,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // Helper function to convert Supabase user to our User type using database
 const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session): Promise<User> => {
   try {
-    // Update database client with user's access token
-    updateDbHeaders(session.access_token)
-    
-    // Get an authenticated database client
-    const authDb = getAuthenticatedDb(session.access_token)
-    
-    console.log('=== USER PROFILE CREATION PROCESS ===')
+    console.log('🔍 Debug: convertSupabaseUser called')
     console.log('User ID:', supabaseUser.id)
     console.log('Email:', supabaseUser.email)
-    console.log('Session token present:', !!session.access_token)
-    
-    // First, wait a bit for the database trigger to potentially create the profile
-    console.log('Waiting for database trigger...')
-    await new Promise(resolve => setTimeout(resolve, 3000))
     
     // Try to get profile from database first
     let userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
-    console.log('Profile found after trigger wait:', !!userProfile)
+    console.log('Profile found:', !!userProfile)
     
     if (!userProfile) {
-      // Profile doesn't exist, try to create it manually using authenticated client
-      console.log('User profile not found, creating manually...')
+      // Profile doesn't exist, try to create it manually
+      console.log('❌ Profile creation failed - no profile found')
       
-      // Manually create the user profile
+      // Create the user profile using the unified client
       const profileData = {
         id: supabaseUser.id,
         email: supabaseUser.email || '',
@@ -84,82 +70,33 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
         streak_count: 1
       }
       
-      console.log('Attempting manual profile creation with data:', profileData)
+      console.log('🔧 Service role fallback - attempting profile creation')
       
-      // Insert the profile directly using authenticated client
-      const { data: createdProfile, error: insertError } = await authDb
+      // Insert the profile using the unified client
+      const { data: createdProfile, error: insertError } = await supabase
         .from('user_profiles')
         .insert(profileData)
         .select()
         .single()
       
       if (insertError) {
-        console.error('=== DETAILED INSERT ERROR ===')
-        console.error('Error code:', insertError.code)
-        console.error('Error message:', insertError.message)
-        console.error('Error details:', insertError.details)
-        console.error('Error hint:', insertError.hint)
-        console.error('Profile data being inserted:', profileData)
-        console.error('Session access token:', session.access_token ? 'Present' : 'Missing')
-        console.error('User ID:', supabaseUser.id)
-        console.error('==============================')
-        
-        // If insert fails due to conflict (profile already exists), try to get it again
-        if (insertError.code === '23505') {
-          console.log('Profile already exists, trying to fetch...')
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          userProfile = await DatabaseService.getUserProfile(supabaseUser.id)
-        } else {
-          // For other errors, try using service role as fallback
-          console.log('Trying service role fallback for profile creation...')
-          try {
-            const serviceRoleResponse = await fetch(`https://wnkxqkesotshizqedmxw.supabase.co/rest/v1/user_profiles`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODAwOTEyNywiZXhwIjoyMDYzNTg1MTI3fQ.kdDePscBMUdq9KlmknoFzwpk4vpJVOqGoRu03Z7h9rQ',
-                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODAwOTEyNywiZXhwIjoyMDYzNTg1MTI3fQ.kdDePscBMUdq9KlmknoFzwpk4vpJVOqGoRu03Z7h9rQ',
-                'Prefer': 'return=representation'
-              },
-              body: JSON.stringify(profileData)
-            })
-            
-            if (serviceRoleResponse.ok) {
-              const serviceRoleData = await serviceRoleResponse.json()
-              console.log('Service role profile creation successful:', serviceRoleData)
-              userProfile = Array.isArray(serviceRoleData) ? serviceRoleData[0] : serviceRoleData
-            } else {
-              const errorText = await serviceRoleResponse.text()
-              console.error('Service role profile creation failed:', errorText)
-            }
-          } catch (serviceRoleError) {
-            console.error('Service role fallback failed:', serviceRoleError)
-          }
-        }
-        
-        if (!userProfile) {
-          throw new Error(`Database error saving new user: ${insertError.message} (Code: ${insertError.code})`)
-        }
-      } else {
-        userProfile = createdProfile
-        console.log('Manual profile creation successful!')
+        console.error('Profile creation error:', insertError)
+        throw new Error(`Database error saving new user: ${insertError.message}`)
       }
-    } else {
-      console.log('Profile found via trigger or previous creation')
+      
+      userProfile = createdProfile
+      console.log('Profile creation successful!')
     }
-    
-    // At this point userProfile should definitely exist
-    if (!userProfile) {
-      throw new Error('Failed to create or retrieve user profile')
-    }
-    
-    console.log('Final user profile:', userProfile)
-    console.log('=== END USER PROFILE CREATION ===')
     
     // Record user login activity (non-blocking)
     DatabaseService.recordUserActivity(supabaseUser.id, 'login').catch(error => {
       console.warn('Failed to record user activity:', error)
     })
+    
+    // Ensure userProfile exists before using it
+    if (!userProfile) {
+      throw new Error('Failed to create or retrieve user profile')
+    }
     
     return {
       id: supabaseUser.id,
@@ -199,33 +136,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const convertedUser = await convertSupabaseUser(session.user, session)
           setUser(convertedUser)
-          setSession(session)
         } catch (error) {
-          console.error('Error converting initial user:', error)
+          console.error('Error converting user:', error)
         }
       }
+      setSession(session)
       setIsLoading(false)
     })
 
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email)
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id)
       
       if (session?.user) {
         try {
           const convertedUser = await convertSupabaseUser(session.user, session)
           setUser(convertedUser)
-          setSession(session)
         } catch (error) {
           console.error('Error converting user on auth change:', error)
-          // Set loading to false even if there's an error
+          setUser(null)
         }
       } else {
         setUser(null)
-        setSession(null)
       }
+      
+      setSession(session)
       setIsLoading(false)
     })
 
@@ -234,109 +169,103 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      setIsLoading(true)
       await AuthService.signInWithEmail(email, password)
-      // User state will be updated via the auth state change listener
-    } catch (error: any) {
-      setIsLoading(false)
-      throw new Error(error.message || 'Failed to sign in')
+    } catch (error) {
+      console.error('Login error:', error)
+      throw error
     }
   }
 
   const signup = async (email: string, password: string, name?: string) => {
     try {
-      setIsLoading(true)
       await AuthService.signUpWithEmail(email, password, name)
-      // User state will be updated via the auth state change listener
-    } catch (error: any) {
-      setIsLoading(false)
-      throw new Error(error.message || 'Failed to sign up')
+    } catch (error) {
+      console.error('Signup error:', error)
+      throw error
     }
   }
 
   const signInWithGoogle = async () => {
     try {
-      setIsLoading(true)
       await AuthService.signInWithGoogle()
-      // User state will be updated via the auth state change listener
-    } catch (error: any) {
-      setIsLoading(false)
-      throw new Error(error.message || 'Failed to sign in with Google')
+    } catch (error) {
+      console.error('Google sign-in error:', error)
+      throw error
     }
   }
 
   const signInWithApple = async () => {
     try {
-      setIsLoading(true)
       await AuthService.signInWithApple()
-      // User state will be updated via the auth state change listener
-    } catch (error: any) {
-      setIsLoading(false)
-      throw new Error(error.message || 'Failed to sign in with Apple')
+    } catch (error) {
+      console.error('Apple sign-in error:', error)
+      throw error
     }
   }
 
   const updateProfile = async (data: { name?: string; avatar?: string }) => {
-    if (user && session) {
-      try {
-        // Update Supabase user metadata
-        const updates: any = {}
-        if (data.name) updates.full_name = data.name
-        if (data.avatar !== undefined) updates.avatar_url = data.avatar
+    if (!user) return
 
-        const { error } = await auth.updateUser({
-          data: updates
-        })
-
-        if (error) throw error
-
-        // Update database profile
-        await DatabaseService.updateUserProfile(user.id, {
+    try {
+      // Update user metadata in Supabase Auth
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
           full_name: data.name,
-          avatar_url: data.avatar
-        })
+          avatar_url: data.avatar,
+        },
+      })
 
-        // Update local user state
-        setUser({
-          ...user,
-          ...(data.name && { name: data.name }),
-          ...(data.avatar !== undefined && { avatar: data.avatar }),
+      if (authError) throw authError
+
+      // Update user profile in database
+      const { error: dbError } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: data.name,
+          avatar_url: data.avatar,
         })
-      } catch (error) {
-        console.error('Error updating profile:', error)
-        throw error
-      }
+        .eq('id', user.id)
+
+      if (dbError) throw dbError
+
+      // Update local user state
+      setUser({
+        ...user,
+        name: data.name || user.name,
+        avatar: data.avatar || user.avatar,
+      })
+    } catch (error) {
+      console.error('Update profile error:', error)
+      throw error
     }
   }
 
   const logout = async () => {
     try {
-      setIsLoading(true)
       await AuthService.signOut()
-      
-      // Reset database client to use anon key
-      updateDbHeaders(supabaseAnonKey)
-      
-      // User state will be updated via the auth state change listener
-    } catch (error: any) {
-      setIsLoading(false)
-      throw new Error(error.message || 'Failed to sign out')
+      setUser(null)
+      setSession(null)
+    } catch (error) {
+      console.error('Logout error:', error)
+      throw error
     }
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isLoading, 
-      session,
-      login, 
-      signup, 
-      signInWithGoogle,
-      signInWithApple,
-      logout, 
-      updateProfile, 
-      setUser 
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        isLoading,
+        login,
+        signup,
+        signInWithGoogle,
+        signInWithApple,
+        logout,
+        updateProfile,
+        setUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
@@ -345,7 +274,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export const useAuth = () => {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }
