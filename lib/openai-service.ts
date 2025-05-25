@@ -8,8 +8,8 @@ interface SceneGenerationOptions {
 }
 
 class OpenAIService {
-  // API key should be set via environment variables or through setApiKey method
-  private apiKey: string = "";
+  // Hardcoded OpenAI API key - replace with your actual key
+  private apiKey: string = "sk-proj-your-openai-api-key-here";
 
   /**
    * Sets the API key - call this method to configure the API key

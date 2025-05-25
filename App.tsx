@@ -13,7 +13,6 @@ import LoginScreen from "./screens/login-screen"
 import SignupScreen from "./screens/signup-screen"
 import MainNavigator from "./navigation/main-navigator"
 import { AuthProvider, useAuth } from "./context/auth-context"
-import { ApiProvider } from "./context/api-context"
 import { SubscriptionProvider } from "./context/subscription-context"
 import { ThemeProvider } from "./components/theme-provider"
 import { ErrorBoundary } from "./components/error-boundary"
@@ -62,14 +61,12 @@ export default function App() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <ThemeProvider defaultTheme="system">
-          <ApiProvider>
-            <AuthProvider>
-              <SubscriptionProvider>
-                <Navigation />
-                <StatusBar style="light" />
-              </SubscriptionProvider>
-            </AuthProvider>
-          </ApiProvider>
+          <AuthProvider>
+            <SubscriptionProvider>
+              <Navigation />
+              <StatusBar style="light" />
+            </SubscriptionProvider>
+          </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

@@ -4,12 +4,12 @@ import { upscale } from "@cloudinary/url-gen/actions/effect";
 
 // Cloudinary configuration
 const CLOUD_NAME = "dkamczgfw"; // Your Cloudinary cloud name
-let API_KEY = ""; // API key should be set via setApiKey method
+const API_KEY = "-pFyXQc-oibsIAe9L0F_ZuVQ7zs"; // Hardcoded Cloudinary API key
 const UPLOAD_PRESET = "ai_colorizer"; // Custom upload preset
 
-// Method to set API key
+// Method to set API key (kept for backward compatibility)
 export const setCloudinaryApiKey = (key: string) => {
-  API_KEY = key;
+  // API_KEY = key; // No longer needed since we use hardcoded key
 };
 
 export interface CloudinaryUploadResponse {
