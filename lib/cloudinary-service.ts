@@ -3,9 +3,17 @@ import { CloudinaryImage } from "@cloudinary/url-gen";
 import { upscale } from "@cloudinary/url-gen/actions/effect";
 
 // Cloudinary configuration
-const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME!; // Your Cloudinary cloud name
-const API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY!; // Get from environment variables
+const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY;
 const UPLOAD_PRESET = "ai_colorizer"; // Custom upload preset
+
+// Validate environment variables
+if (!CLOUD_NAME) {
+  throw new Error("EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME environment variable is not set");
+}
+if (!API_KEY) {
+  throw new Error("EXPO_PUBLIC_CLOUDINARY_API_KEY environment variable is not set");
+}
 
 // Method to set API key (kept for backward compatibility)
 export const setCloudinaryApiKey = (key: string) => {

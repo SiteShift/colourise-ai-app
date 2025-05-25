@@ -1,11 +1,14 @@
 // DeepAI API configuration
-const DEEPAI_API_KEY = process.env.EXPO_PUBLIC_DEEPAI_API_KEY!; // Get from environment variables
+const DEEPAI_API_KEY = process.env.EXPO_PUBLIC_DEEPAI_API_KEY; // Get from environment variables
 
 export const DeepAIService = {
   /**
    * Get the DeepAI API key
    */
   getApiKey: (): string => {
+    if (!DEEPAI_API_KEY) {
+      throw new Error("EXPO_PUBLIC_DEEPAI_API_KEY environment variable is not set");
+    }
     return DEEPAI_API_KEY;
   },
 
@@ -14,6 +17,11 @@ export const DeepAIService = {
    */
   colorizeImage: async (imageUri: string): Promise<string> => {
     try {
+      // Check if API key is available
+      if (!DEEPAI_API_KEY) {
+        throw new Error("DeepAI API key is not configured. Please check your environment variables.");
+      }
+
       // Create form data for basic colorization
       const formData = new FormData();
       const fileName = imageUri.split("/").pop() || "photo.jpg";
@@ -26,7 +34,7 @@ export const DeepAIService = {
         type: fileType,
       } as any);
 
-      console.log("Making API request to DeepAI with API key:", DEEPAI_API_KEY.substring(0, 10) + "...");
+      console.log("Making API request to DeepAI with API key:", DEEPAI_API_KEY ? DEEPAI_API_KEY.substring(0, 10) + "..." : "undefined");
 
       const response = await fetch("https://api.deepai.org/api/colorizer", {
         method: "POST",

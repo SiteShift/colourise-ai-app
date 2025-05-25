@@ -9,7 +9,15 @@ interface SceneGenerationOptions {
 
 class OpenAIService {
   // Get OpenAI API key from environment variables
-  private apiKey: string = process.env.EXPO_PUBLIC_OPENAI_API_KEY!;
+  private apiKey: string;
+
+  constructor() {
+    const envApiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+    if (!envApiKey) {
+      throw new Error("EXPO_PUBLIC_OPENAI_API_KEY environment variable is not set");
+    }
+    this.apiKey = envApiKey;
+  }
 
   /**
    * Sets the API key - call this method to configure the API key
