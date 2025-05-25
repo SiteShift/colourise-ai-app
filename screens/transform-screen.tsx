@@ -1269,18 +1269,25 @@ export default function TransformScreen() {
     try {
       console.log(`Starting premium feature: ${feature.title}`);
       
-      // Download the colorized image first
-      const localUri = await FileSystem.downloadAsync(
-        colorizedImage,
-        FileSystem.cacheDirectory + 'temp_colorized.jpg'
-      );
+      // Handle both remote URLs and local file URIs
+      let localUri;
+      if (colorizedImage.startsWith('http')) {
+        // Remote image - download it
+        localUri = await FileSystem.downloadAsync(
+          colorizedImage,
+          FileSystem.cacheDirectory + 'temp_colorized.jpg'
+        );
+      } else {
+        // Local image - use directly
+        localUri = { uri: colorizedImage, status: 200 };
+      }
 
       if (localUri.status !== 200) {
         throw new Error("Failed to prepare image for enhancement");
       }
       
-      console.log(`Downloaded colorized image to: ${localUri.uri}`);
-
+      console.log(`Using image URI: ${localUri.uri.substring(0, 50)}...`);
+      
       // For face enhancement or 4K upscaler, use Cloudinary upscale effect
       if (featureId === '2' || featureId === '3') {
         console.log(`Using Cloudinary for ${feature.title}`);
