@@ -238,12 +238,12 @@ export class DatabaseService {
         .from('user_profiles')
         .update({ credits: newCredits })
         .eq('id', userId)
-
+      
       if (error) {
         console.error('Error updating user credits:', error)
         return false
       }
-
+      
       return true
     } catch (error) {
       console.error('Error in updateUserCredits:', error)
@@ -259,7 +259,7 @@ export class DatabaseService {
         console.error('Insufficient credits')
         return false
       }
-
+      
       const newCredits = currentCredits - amount
       const success = await this.updateUserCredits(userId, newCredits, accessToken)
 
@@ -336,12 +336,12 @@ export class DatabaseService {
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit)
-
+      
       if (error) {
         console.error('Error fetching credit transactions:', error)
         return []
       }
-
+      
       return data || []
     } catch (error) {
       console.error('Error in getCreditTransactions:', error)

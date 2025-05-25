@@ -206,14 +206,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = async (data: { name?: string; avatar?: string }) => {
     if (!user) return
 
-    try {
+      try {
       // Update user metadata in Supabase Auth
       const { error: authError } = await supabase.auth.updateUser({
         data: {
           full_name: data.name,
           avatar_url: data.avatar,
         },
-      })
+        })
 
       if (authError) throw authError
 
@@ -228,15 +228,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (dbError) throw dbError
 
-      // Update local user state
-      setUser({
-        ...user,
+        // Update local user state
+        setUser({
+          ...user,
         name: data.name || user.name,
         avatar: data.avatar || user.avatar,
-      })
-    } catch (error) {
+        })
+      } catch (error) {
       console.error('Update profile error:', error)
-      throw error
+        throw error
     }
   }
 
@@ -254,15 +254,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user,
+      user, 
         session,
-        isLoading,
-        login,
-        signup,
-        signInWithGoogle,
-        signInWithApple,
-        logout,
-        updateProfile,
+      isLoading, 
+      login, 
+      signup, 
+      signInWithGoogle,
+      signInWithApple,
+      logout, 
+      updateProfile, 
         setUser,
       }}
     >

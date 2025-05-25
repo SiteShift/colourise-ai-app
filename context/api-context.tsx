@@ -3,15 +3,20 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 
 type ApiContextType = {
   apiKey: string
+  setApiKey: (key: string) => void
+  isApiKeyLoaded: boolean
 }
 
 // Create the context with a default value
 const ApiContext = createContext<ApiContextType>({
-  apiKey: "" // API key should be set by user
+  apiKey: "",
+  setApiKey: () => {},
+  isApiKeyLoaded: false
 })
 
 export function ApiProvider({ children }: { children: React.ReactNode }) {
-  const [apiKey, setApiKey] = useState<string>("")
+  const [apiKey, setApiKeyState] = useState<string>("")
+  const [isApiKeyLoaded, setIsApiKeyLoaded] = useState<boolean>(false)
 
   // Load the API key from AsyncStorage when component mounts
   useEffect(() => {
@@ -19,30 +24,42 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
       try {
         const storedKey = await AsyncStorage.getItem("deepai_api_key")
         if (storedKey) {
-          setApiKey(storedKey)
+          setApiKeyState(storedKey)
         }
+        setIsApiKeyLoaded(true)
       } catch (error) {
         console.error("Error loading API key:", error)
+        setIsApiKeyLoaded(true)
       }
     }
     
     loadApiKey()
   }, [])
 
-  // Store the API key in AsyncStorage when component mounts
+  // Store the API key in AsyncStorage when it changes
   useEffect(() => {
     const storeApiKey = async () => {
-      try {
-        await AsyncStorage.setItem("deepai_api_key", apiKey)
-      } catch (error) {
-        console.error("Error storing API key:", error)
+      if (isApiKeyLoaded && apiKey) {
+        try {
+          await AsyncStorage.setItem("deepai_api_key", apiKey)
+        } catch (error) {
+          console.error("Error storing API key:", error)
+        }
       }
     }
     
     storeApiKey()
-  }, [])
+  }, [apiKey, isApiKeyLoaded])
 
-  return <ApiContext.Provider value={{ apiKey }}>{children}</ApiContext.Provider>
+  const setApiKey = (key: string) => {
+    setApiKeyState(key)
+  }
+
+  return (
+    <ApiContext.Provider value={{ apiKey, setApiKey, isApiKeyLoaded }}>
+      {children}
+    </ApiContext.Provider>
+  )
 }
 
 export const useApi = () => {

@@ -42,6 +42,7 @@ import { autoDetectAndCropPhoto } from "../lib/autoDetectPhoto"
 import { CloudinaryService } from "../lib/cloudinary-service"
 import { useNavigation } from "@react-navigation/native"
 import { AISceneBuilderModal } from "../components/AISceneBuilderModal"
+import ApiKeyModal from "../components/api-key-modal"
 import OpenAIService from "../lib/openai-service"
 
 const { width } = Dimensions.get("window")
@@ -395,7 +396,10 @@ export default function TransformScreen() {
   // Add state for AI Scene Builder modal
   const [showAISceneBuilderModal, setShowAISceneBuilderModal] = useState(false);
   
-  const { apiKey } = useApi()
+  // Add state for API Key modal
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  
+  const { apiKey, setApiKey, isApiKeyLoaded } = useApi()
   const { user } = useAuth()
   const { isPremium } = useSubscription()
   const navigation = useNavigation()
@@ -602,6 +606,14 @@ export default function TransformScreen() {
   // Special colorization process for scanned photos
   const colorizeScannedDocument = async (imageUri: string) => {
     if (!imageUri) return
+    
+    // Check if API key is available
+    if (!apiKey || apiKey.trim() === '') {
+      setShowApiKeyModal(true);
+      setIsProcessing(false);
+      return;
+    }
+    
     if (credits <= 0) {
       Alert.alert(
         "No Credits",
@@ -705,6 +717,12 @@ export default function TransformScreen() {
     const imageToColorize = imageUri || image;
     if (!imageToColorize) return;
 
+    // Check if API key is available
+    if (!apiKey || apiKey.trim() === '') {
+      setShowApiKeyModal(true);
+      return;
+    }
+
     // Check if user has at least 1 credit for basic colorization
     if (credits < 1) {
       Alert.alert(
@@ -733,6 +751,8 @@ export default function TransformScreen() {
         type: fileType,
       } as any);
 
+      console.log("Making API request to DeepAI with API key:", apiKey.substring(0, 10) + "...");
+
       const response = await fetch("https://api.deepai.org/api/colorizer", {
         method: "POST",
         headers: {
@@ -741,7 +761,9 @@ export default function TransformScreen() {
         body: formData,
       });
 
+      console.log("API response status:", response.status);
       const data = await response.json();
+      console.log("API response data:", data);
 
       if (data.output_url) {
         setColorizedImage(data.output_url);
@@ -753,16 +775,33 @@ export default function TransformScreen() {
         
         // Provide success feedback
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else if (response.status === 401) {
+        throw new Error("Invalid API key. Please check your DeepAI API key and try again.");
+      } else if (response.status === 402) {
+        throw new Error("DeepAI API quota exceeded. Please check your DeepAI account.");
       } else {
-        throw new Error(data.message || "API error: Colourisation failed");
+        throw new Error(data.message || `API error: ${response.status} - Colourisation failed`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error colourising image:", error);
-      Alert.alert(
-        "Colourisation Failed",
-        "There was a problem colourising your image. Please try again.",
-        [{ text: "OK" }]
-      );
+      
+      // Check if it's an API key related error
+      if (error.message && error.message.includes("Invalid API key")) {
+        Alert.alert(
+          "Invalid API Key",
+          "Your DeepAI API key appears to be invalid. Please update it and try again.",
+          [
+            { text: "Update API Key", onPress: () => setShowApiKeyModal(true) },
+            { text: "Cancel", style: "cancel" }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Colourisation Failed",
+          error.message || "There was a problem colourising your image. Please try again.",
+          [{ text: "OK" }]
+        );
+      }
       setIsProcessing(false);
     }
   };
@@ -2104,6 +2143,16 @@ export default function TransformScreen() {
         onSelectScene={handleAISceneBuilder}
         isProcessing={isPostProcessing}
         credits={credits}
+      />
+
+      {/* API Key Modal */}
+      <ApiKeyModal
+        isVisible={showApiKeyModal}
+        onClose={() => setShowApiKeyModal(false)}
+        onSave={(key: string) => {
+          setApiKey(key);
+          setShowApiKeyModal(false);
+        }}
       />
     </SafeAreaView>
   )
