@@ -3,13 +3,13 @@ import { CloudinaryImage } from "@cloudinary/url-gen";
 import { upscale } from "@cloudinary/url-gen/actions/effect";
 
 // Cloudinary configuration
-const CLOUD_NAME = "dkamczgfw"; // Your Cloudinary cloud name
-const API_KEY = "-pFyXQc-oibsIAe9L0F_ZuVQ7zs"; // Hardcoded Cloudinary API key
+const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME!; // Your Cloudinary cloud name
+const API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY!; // Get from environment variables
 const UPLOAD_PRESET = "ai_colorizer"; // Custom upload preset
 
 // Method to set API key (kept for backward compatibility)
 export const setCloudinaryApiKey = (key: string) => {
-  // API_KEY = key; // No longer needed since we use hardcoded key
+  // API_KEY = key; // No longer needed since we use environment variables
 };
 
 export interface CloudinaryUploadResponse {

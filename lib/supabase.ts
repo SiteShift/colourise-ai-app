@@ -3,10 +3,10 @@ import { PostgrestClient } from '@supabase/postgrest-js'
 import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
 
-const supabaseUrl = 'https://wnkxqkesotshizqedmxw.supabase.co'
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
 // TODO: Replace this with the complete anon key from your Supabase dashboard
 // Go to your dashboard -> Settings -> API -> Copy the "anon public" key
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indua3hxa2Vzb3RzaGl6cWVkbXh3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgwMDkxMjcsImV4cCI6MjA2MzU4NTEyN30.m-cl-q_2KAFDi6S-d22ivr6L-YppSXM4BI-00iG6R0Q'
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
 
 // Use Expo's secure storage for auth tokens
 const ExpoSecureStoreAdapter = {

@@ -1,5 +1,5 @@
 // DeepAI API configuration
-const DEEPAI_API_KEY = "your-deepai-api-key-here"; // Hardcoded DeepAI API key
+const DEEPAI_API_KEY = process.env.EXPO_PUBLIC_DEEPAI_API_KEY!; // Get from environment variables
 
 export const DeepAIService = {
   /**
