@@ -28,6 +28,7 @@ import * as ImageManipulator from "expo-image-manipulator"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useAuth } from "../context/auth-context"
 import { useSubscription } from "../context/subscription-context"
+import { usePurchases } from "../context/purchases-context"
 import { GalleryService } from "../lib/gallery-service"
 import { LinearGradient } from "expo-linear-gradient"
 import * as Haptics from "expo-haptics"
@@ -38,11 +39,9 @@ import { Image as ExpoImage } from 'expo-image'
 import React from 'react'
 import { enhanceImageForColorization, enhanceScannedPhotoForColorization } from "../lib/imageProcessing"
 import { autoDetectAndCropPhoto } from "../lib/autoDetectPhoto"
-import { CloudinaryService } from "../lib/cloudinary-service"
-import { DeepAIService } from "../lib/deepai-service"
+import { ProcessingService } from "../lib/processing-service"
 import { useNavigation } from "@react-navigation/native"
 import { AISceneBuilderModal } from "../components/AISceneBuilderModal"
-import OpenAIService from "../lib/openai-service"
 
 const { width } = Dimensions.get("window")
 const blurhash = 'L000000000000000000000000000'
@@ -409,6 +408,7 @@ export default function TransformScreen() {
   
   const { user, setUser } = useAuth()
   const { isPremium } = useSubscription()
+  const { purchaseCredits: revenueCatPurchase, refreshCredits } = usePurchases()
   const navigation = useNavigation()
   
   // Get credits from user context
@@ -482,7 +482,6 @@ export default function TransformScreen() {
         }
       }, 600); // Reduced delay for faster feedback
     } catch (error) {
-      console.error('Error prefetching image:', error);
       // Even if prefetch fails, still try to show the image
       sliderFadeAnim.setValue(0);
       setSliderEntranceComplete(false);
@@ -601,7 +600,6 @@ export default function TransformScreen() {
           // Immediately start the colorization process
           colorizeScannedDocument(autoCroppedUri)
         } catch (error) {
-          console.error("Error in auto-crop process:", error)
           hapticFeedback.error(); // Error feedback
           
           // If auto-crop fails, use the original image as fallback
@@ -618,7 +616,6 @@ export default function TransformScreen() {
         }
       }
     } catch (error) {
-      console.error("Error taking photo:", error)
       hapticFeedback.error(); // Error feedback
       Alert.alert(
         "Camera Error",
@@ -631,10 +628,10 @@ export default function TransformScreen() {
     }
   }
   
-  // Special colorization process for scanned photos
+  // Special colorization process for scanned photos - now uses server-side processing
   const colorizeScannedDocument = async (imageUri: string) => {
-    if (!imageUri) return
-    
+    if (!imageUri || !user) return
+
     if (credits <= 0) {
       Alert.alert(
         "No Credits",
@@ -656,27 +653,26 @@ export default function TransformScreen() {
     try {
       // Use specialized enhancement for scanned photos
       const processedImageUri = await enhanceScannedPhotoForColorization(imageUri);
-      
-      // Use the DeepAI service for colorization
-      const colorizedUrl = await DeepAIService.colorizeImage(processedImageUri);
-      
-      setColorizedImage(colorizedUrl)
-      // Deduct a credit after successful colorization
-      updateCredits(credits - 1)
-      
+
+      // Use server-side processing (credits deducted server-side)
+      const result = await ProcessingService.colorize(processedImageUri, user.id);
+
+      setColorizedImage(result.url)
+      // Update credits from server response
+      updateCredits(result.creditsRemaining)
+
       // Prepare and prefetch the colorized image
-      await prepareColorizedImage(colorizedUrl);
-      
+      await prepareColorizedImage(result.url);
+
       // Provide haptic feedback on success
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    } catch (error) {
-      console.error("Error colourising scanned document:", error)
+    } catch (error: any) {
       // Provide haptic feedback on error
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      
+
       Alert.alert(
         "Colourisation Failed",
-        "There was a problem colourising your photo. Please try again with better lighting and positioning.",
+        error.message || "There was a problem colourising your photo. Please try again with better lighting and positioning.",
         [{ text: "OK" }],
       )
       setIsProcessing(false)
@@ -695,10 +691,10 @@ export default function TransformScreen() {
     });
   };
 
-  // Update the colorizeImage function
+  // Update the colorizeImage function - now uses server-side processing
   const colorizeImage = async (imageUri?: string) => {
     const imageToColorize = imageUri || image;
-    if (!imageToColorize) return;
+    if (!imageToColorize || !user) return;
 
     // Check if user has at least 1 credit for basic colorization
     if (credits < 1) {
@@ -716,21 +712,19 @@ export default function TransformScreen() {
     setSliderEntranceComplete(false);
 
     try {
-      // Use the DeepAI service for colorization
-      const colorizedUrl = await DeepAIService.colorizeImage(imageToColorize);
-      
-      setColorizedImage(colorizedUrl);
-      // Deduct 1 credit for basic colorization
-      updateCredits(credits - 1);
-      
+      // Use server-side processing (credits deducted server-side)
+      const result = await ProcessingService.colorize(imageToColorize, user.id);
+
+      setColorizedImage(result.url);
+      // Update credits from server response (server is source of truth)
+      updateCredits(result.creditsRemaining);
+
       // Prepare the colorized image - this keeps isProcessing true until done
-      await prepareColorizedImage(colorizedUrl);
-      
+      await prepareColorizedImage(result.url);
+
       // Provide success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: any) {
-      console.error("Error colourising image:", error);
-      
       Alert.alert(
         "Colourisation Failed",
         error.message || "There was a problem colourising your image. Please try again.",
@@ -743,7 +737,6 @@ export default function TransformScreen() {
   // Simplify the save image function to avoid multiple alerts and double saving
   const saveImage = async () => {
     if (!colorizedImage) {
-      console.error("No colorized image to save");
       return;
     }
 
@@ -757,8 +750,6 @@ export default function TransformScreen() {
         return;
       }
       
-      console.log("Attempting to save image:", colorizedImage.substring(0, 50) + "...");
-      
       // First make sure we have a valid URI to work with - either direct or downloaded
       let validUri = colorizedImage;
       let downloaded = false;
@@ -766,7 +757,6 @@ export default function TransformScreen() {
       // If it's a remote URL, download it first
       if (colorizedImage.startsWith('http')) {
         try {
-          console.log("Downloading remote image for saving...");
           // Use a unique filename with timestamp to avoid conflicts
           const timestamp = new Date().getTime();
           const downloadPath = FileSystem.cacheDirectory + 'saving_colorized_image_' + timestamp + '.jpg';
@@ -779,36 +769,27 @@ export default function TransformScreen() {
           if (downloadResult && downloadResult.status === 200) {
             validUri = downloadResult.uri;
             downloaded = true;
-            console.log("Download successful, uri:", validUri.substring(0, 50) + "...");
-            
+
             // Verify the downloaded file exists and has content
             const fileInfo = await FileSystem.getInfoAsync(validUri);
             if (!fileInfo.exists || fileInfo.size === 0) {
-              console.error("Downloaded file is empty or doesn't exist");
               // Fall back to the original URL
               validUri = colorizedImage;
               downloaded = false;
             }
           } else {
-            console.error("Download failed with status:", downloadResult ? downloadResult.status : "null result");
-            
             // Try an alternative download approach
             try {
-              console.log("Attempting alternative download method...");
               const response = await fetch(colorizedImage);
               if (response.ok) {
                 const blob = await response.blob();
                 // We can't directly save blobs in React Native, so we'll stick with the original URL
-                console.log("Content fetched successfully, but using original URL");
-              } else {
-                console.error("Alternative fetch failed with status:", response.status);
               }
             } catch (fetchError) {
-              console.error("Alternative fetch method failed:", fetchError);
+              // Alternative fetch method failed
             }
           }
         } catch (downloadErr) {
-          console.error("Error downloading image for saving:", downloadErr);
           // Continue with original URI as fallback
         }
       }
@@ -817,9 +798,7 @@ export default function TransformScreen() {
       if (!validUri) {
         throw new Error("No valid image URI to save");
       }
-      
-      console.log("Proceeding to save with URI:", validUri.substring(0, 50) + "...");
-      
+
       // Save using GalleryService but don't show its alert
       try {
         await GalleryService.saveImage(
@@ -830,8 +809,8 @@ export default function TransformScreen() {
           showingEnhancedComparison ? "Face Enhancement" : "Colorized" // Set appropriate title
         );
         hapticFeedback.success();
-        
-        // Show our own success alert with option to view saved image in gallery
+
+        // Show success alert with option to view saved image in gallery
         Alert.alert(
           "Success", 
           "Image saved successfully", 
@@ -852,21 +831,15 @@ export default function TransformScreen() {
           ]
         );
       } catch (saveError) {
-        console.error("Error from GalleryService.saveImage:", saveError);
-        
         // If the service failed but we have a downloaded copy, try a direct save as fallback
         if (downloaded) {
           try {
-            console.log("Trying direct save to media library as fallback");
-            
             // First save to device gallery directly
             await MediaLibrary.saveToLibraryAsync(validUri);
-            
+
             // Also save to the app's local gallery so it appears in the gallery screen
             try {
-              console.log("Saving to app's local gallery");
               await GalleryService.saveImageToLocalGallery(validUri);
-              console.log("Successfully saved to local gallery");
               
               // Clear the gallery cache to ensure the new image shows up
               GalleryService.clearCache();
@@ -888,8 +861,6 @@ export default function TransformScreen() {
                 ]
               );
             } catch (localGalleryError) {
-              console.error("Error saving to app's local gallery:", localGalleryError);
-              
               // Still show success for the device gallery save even if app gallery fails
               hapticFeedback.success();
               Alert.alert(
@@ -914,15 +885,14 @@ export default function TransformScreen() {
             }
             return;
           } catch (directSaveError) {
-            console.error("Direct save fallback failed:", directSaveError);
+            // Direct save fallback failed
           }
         }
-        
+
         // If we get here, all save attempts failed
         throw saveError;
       }
     } catch (error) {
-      console.error("Error saving image:", error);
       hapticFeedback.error();
       Alert.alert("Save Failed", "Failed to save image. Please try again.");
     } finally {
@@ -1052,11 +1022,10 @@ export default function TransformScreen() {
         try {
           await FileSystem.deleteAsync(localUri.uri, { idempotent: true });
         } catch (cleanupError) {
-          console.warn("Failed to clean up temporary share file:", cleanupError);
+          // Failed to clean up temporary share file
         }
       }
     } catch (error) {
-      console.error('Share error:', error);
       hapticFeedback.error(); // Error feedback
       Alert.alert('Error', 'Failed to share the image');
     }
@@ -1079,8 +1048,23 @@ export default function TransformScreen() {
   }, [showCreditsModal]);
 
   const handlePurchaseCredits = async (packageId: string) => {
-    // TODO: Implement actual purchase logic
-    Alert.alert('Purchase Credits', 'Payment integration coming soon!');
+    // Map local package IDs to RevenueCat product IDs
+    const productIdMap: Record<string, string> = {
+      '1': 'credits_20',
+      '2': 'credits_70',
+      '3': 'credits_250',
+    }
+
+    const productId = productIdMap[packageId] || packageId
+
+    const success = await revenueCatPurchase(productId)
+
+    if (success) {
+      // Close the modal on successful purchase
+      closeCreditsModal()
+      // Refresh credits from server
+      await refreshCredits()
+    }
   };
 
   const closeCreditsModal = () => {
@@ -1195,10 +1179,8 @@ export default function TransformScreen() {
         ExpoImage.prefetch(scanButtonUri),
         ExpoImage.prefetch(diamondUri)
       ]);
-      
-      console.log('All static assets prefetched successfully');
     } catch (error) {
-      console.error('Error prefetching assets:', error);
+      // Error prefetching assets
     }
   }, []);
 
@@ -1263,7 +1245,7 @@ export default function TransformScreen() {
     </View>
   ));
 
-  // Add function to handle premium feature processing
+  // Add function to handle premium feature processing - now uses server-side processing
   const applyPremiumFeature = async (featureId: string) => {
     if (!colorizedImage || !user) {
       Alert.alert("Error", "Please log in to use premium features");
@@ -1292,79 +1274,49 @@ export default function TransformScreen() {
     // Reset image loading state to trigger reload
     setIsColorizedImageLoaded(false);
     setSliderEntranceComplete(false);
-    
+
     // Set this as the active feature
     setActiveFeatures([featureId]);
-    
+
     // Store original colorized image for the slider
     const originalColorizedImage = colorizedImage;
 
     try {
-      console.log(`Starting premium feature: ${feature.title}`);
-      
-      // Handle both remote URLs and local file URIs
-      let localUri;
-      if (colorizedImage.startsWith('http')) {
-        // Remote image - download it
-        localUri = await FileSystem.downloadAsync(
-          colorizedImage,
-          FileSystem.cacheDirectory + 'temp_colorized.jpg'
-        );
+      let result;
+
+      // Use server-side processing for premium features
+      if (featureId === '2') {
+        // Face Enhancement
+        result = await ProcessingService.enhanceFace(colorizedImage, user.id);
+      } else if (featureId === '3') {
+        // 4K Upscaler
+        result = await ProcessingService.upscale(colorizedImage, user.id, 4);
       } else {
-        // Local image - use directly
-        localUri = { uri: colorizedImage, status: 200 };
+        throw new Error('Unknown feature');
       }
 
-      if (localUri.status !== 200) {
-        throw new Error("Failed to prepare image for enhancement");
-      }
-      
-      console.log(`Using image URI: ${localUri.uri.substring(0, 50)}...`);
-      
-      // For face enhancement or 4K upscaler, use Cloudinary upscale effect
-      if (featureId === '2' || featureId === '3') {
-        console.log(`Using Cloudinary for ${feature.title}`);
-        
-        // Use CloudinaryService to enhance the image
-        const enhancedUri = await CloudinaryService.enhanceImage(
-          localUri.uri, 
-          featureId === '3' // true if it's the 4K upscaler
-        );
-        
-        console.log(`Enhancement complete, URI: ${enhancedUri}`);
-        
-        // Update the colorized image with the enhanced version
-        setColorizedImage(enhancedUri);
-        
-        // Force a refresh of the image display by explicitly preparing it
-        // Pass true to skip showing the colorization animation after enhancement
-        await prepareColorizedImage(enhancedUri, true);
-        
-        // Store the original and enhanced images for slider comparison
-        AsyncStorage.setItem('original_colorized', originalColorizedImage);
-        AsyncStorage.setItem('enhanced_image', enhancedUri);
-      }
-      
-      // Deduct credits
-      updateCredits(credits - feature.credits);
-      
+      // Update the colorized image with the enhanced version
+      setColorizedImage(result.url);
+
+      // Force a refresh of the image display
+      await prepareColorizedImage(result.url, true);
+
+      // Store the original and enhanced images for slider comparison
+      AsyncStorage.setItem('original_colorized', originalColorizedImage);
+      AsyncStorage.setItem('enhanced_image', result.url);
+
+      // Update credits from server response
+      updateCredits(result.creditsRemaining);
+
       // Success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("Error applying premium feature:", error);
-      
-      // Show a more detailed error message
-      let errorMessage = "There was a problem applying the enhancement.";
-      if (error instanceof Error) {
-        errorMessage += ` Details: ${error.message}`;
-      }
-      
+    } catch (error: any) {
       Alert.alert(
         "Enhancement Failed",
-        errorMessage,
+        error.message || "There was a problem applying the enhancement.",
         [{ text: "OK" }]
       );
-      
+
       // Reset loading state if there's an error
       setIsColorizedImageLoaded(true);
     } finally {
@@ -1378,24 +1330,14 @@ export default function TransformScreen() {
     }
   };
 
-  // Add handler for AI Scene Builder
+  // Add handler for AI Scene Builder - now uses server-side processing
   const handleAISceneBuilder = async (scene: string, customPrompt?: string) => {
     setShowAISceneBuilderModal(false);
-    
+
     if (!colorizedImage || !user) {
       Alert.alert("Error", "Something went wrong. Please try again.");
       return;
     }
-
-    // Check OpenAI API key - this is no longer needed since we use a fixed key
-    // if (!openAIKey) {
-    //   Alert.alert(
-    //     "OpenAI API Key Required",
-    //     "Please add your OpenAI API key in the profile settings to use this feature.",
-    //     [{ text: "OK" }]
-    //   );
-    //   return;
-    // }
 
     setIsPostProcessing(true);
     setIsColorizedImageLoaded(false);
@@ -1403,44 +1345,40 @@ export default function TransformScreen() {
     setActiveFeatures(['1']);
 
     try {
-      // No need to set API key anymore as we use a fixed key in the service
-      // OpenAIService.setApiKey(openAIKey);
-
-      // Generate the scene
-      const sceneImageUri = await OpenAIService.generateScene({
+      // Use server-side processing (credits deducted server-side)
+      const result = await ProcessingService.generateScene(
+        colorizedImage,
+        user.id,
         scene,
-        customPrompt,
-        originalImage: colorizedImage,
-      });
+        customPrompt
+      );
 
       // Update the colorized image with the new scene
-      setColorizedImage(sceneImageUri);
-      
+      setColorizedImage(result.url);
+
       // Prepare the new image
-      await prepareColorizedImage(sceneImageUri, true);
-      
+      await prepareColorizedImage(result.url, true);
+
       // Store the original and enhanced images for slider comparison
       AsyncStorage.setItem('original_colorized', colorizedImage);
-      AsyncStorage.setItem('enhanced_image', sceneImageUri);
-      
+      AsyncStorage.setItem('enhanced_image', result.url);
+
       // Update comparison state
       setShowingEnhancedComparison(true);
       setOriginalColorizedUri(colorizedImage);
-      
-      // Deduct credits
-      updateCredits(credits - 10);
-      
+
+      // Update credits from server response
+      updateCredits(result.creditsRemaining);
+
       // Success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("Error generating AI scene:", error);
-      
+    } catch (error: any) {
       Alert.alert(
         "Scene Generation Failed",
-        "There was a problem generating your scene. Please try again.",
+        error.message || "There was a problem generating your scene. Please try again.",
         [{ text: "OK" }]
       );
-      
+
       setIsColorizedImageLoaded(true);
     } finally {
       setIsPostProcessing(false);
@@ -1544,35 +1482,31 @@ export default function TransformScreen() {
       try {
         // Check existing permissions first
         const existingMediaPermission = await MediaLibrary.getPermissionsAsync();
-        console.log('Existing Media Library Permission:', existingMediaPermission.status);
-        
+
         // Only request if not already granted, to avoid unnecessary prompts
         if (existingMediaPermission.status !== 'granted') {
           // Request media library permissions
           const mediaLibraryPermission = await MediaLibrary.requestPermissionsAsync();
-          console.log('Media Library Permission:', mediaLibraryPermission.status);
-          
+
           // Set permission state
           setHasMediaLibraryPermission(mediaLibraryPermission.status === 'granted');
         } else {
           setHasMediaLibraryPermission(true);
         }
-        
+
         // Check existing camera permission
         const existingCameraPermission = await ImagePicker.getCameraPermissionsAsync();
-        console.log('Existing Camera Permission:', existingCameraPermission.status);
-        
+
         // Only request if not already granted
         if (existingCameraPermission.status !== 'granted') {
           // Request camera permissions
-          const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-          console.log('Camera Permission:', cameraPermission.status);
+          await ImagePicker.requestCameraPermissionsAsync();
         }
       } catch (error) {
-        console.error('Error requesting permissions:', error);
+        // Error requesting permissions
       }
     };
-    
+
     // Request permissions when component mounts
     requestPermissions();
   }, []);
@@ -1595,7 +1529,6 @@ export default function TransformScreen() {
             setOriginalColorizedUri(null);
           }
         } catch (error) {
-          console.error('Error checking for enhanced comparison:', error);
           setShowingEnhancedComparison(false);
         }
       }

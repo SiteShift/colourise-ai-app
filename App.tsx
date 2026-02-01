@@ -14,6 +14,7 @@ import SignupScreen from "./screens/signup-screen"
 import MainNavigator from "./navigation/main-navigator"
 import { AuthProvider, useAuth } from "./context/auth-context"
 import { SubscriptionProvider } from "./context/subscription-context"
+import { PurchasesProvider } from "./context/purchases-context"
 import { ThemeProvider } from "./components/theme-provider"
 import { ErrorBoundary } from "./components/error-boundary"
 
@@ -63,8 +64,10 @@ export default function App() {
         <ThemeProvider defaultTheme="system">
           <AuthProvider>
             <SubscriptionProvider>
-              <Navigation />
-              <StatusBar style="light" />
+              <PurchasesProvider>
+                <Navigation />
+                <StatusBar style="light" />
+              </PurchasesProvider>
             </SubscriptionProvider>
           </AuthProvider>
         </ThemeProvider>

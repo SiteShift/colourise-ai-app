@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react"
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  StyleSheet, 
-  FlatList, 
-  Modal, 
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Modal,
   Alert,
   Animated,
   Dimensions,
@@ -31,7 +31,7 @@ const THUMBNAIL_SIZE = (width - 40) / 2; // Calculate thumbnail size based on sc
 // Skeleton loader component for gallery items
 const SkeletonItem = ({ index }: { index: number }) => {
   const opacity = React.useRef(new Animated.Value(0.3)).current;
-  
+
   useEffect(() => {
     const animateSkeleton = () => {
       Animated.sequence([
@@ -49,20 +49,20 @@ const SkeletonItem = ({ index }: { index: number }) => {
         })
       ]).start(animateSkeleton);
     };
-    
+
     animateSkeleton();
-    
+
     return () => {
       opacity.stopAnimation();
     };
   }, [opacity]);
-  
+
   const delay = index * 150;
-  
+
   return (
-    <Animated.View 
+    <Animated.View
       style={[
-        styles.imageItem, 
+        styles.imageItem,
         { opacity }
       ]}
     >
@@ -82,10 +82,10 @@ export default function GalleryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const { user } = useAuth()
   const { isPremium } = useSubscription()
-  
+
   // Animation for empty state
   const emptyAnim = React.useRef(new Animated.Value(0)).current;
-  
+
   useEffect(() => {
     if (!isLoading && galleryImages.length === 0) {
       Animated.spring(emptyAnim, {
@@ -109,22 +109,10 @@ export default function GalleryScreen() {
         GalleryService.clearCache()
       }
 
-      console.log("Loading gallery images for user:", user.id);
-      console.log("isPremium:", isPremium);
-      
       const images = await GalleryService.getAllImages(user.id, isPremium)
-      
-      console.log(`Found ${images.length} images in gallery`);
-      if (images.length > 0) {
-        console.log("First 3 image URIs:");
-        images.slice(0, 3).forEach((img, index) => {
-          console.log(`Image ${index + 1}: ${img.uri.substring(0, 50)}...`);
-        });
-      }
-      
+
       setGalleryImages(images)
     } catch (error) {
-      console.error("Error loading gallery images:", error)
       Alert.alert("Error", "Failed to load gallery images")
     }
   }, [user, isPremium])
@@ -144,7 +132,6 @@ export default function GalleryScreen() {
   // Add focus effect to reload gallery when screen gains focus
   useFocusEffect(
     useCallback(() => {
-      console.log("Gallery screen focused, reloading images");
       // Always refresh when coming from another screen
       GalleryService.clearCache(); // Forcibly clear cache
       loadGalleryImages(true); // Always force refresh on focus
@@ -183,17 +170,16 @@ export default function GalleryScreen() {
             try {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               await GalleryService.deleteImage(selectedImage, user.id, isPremium)
-              
+
               // Update local state
-              setGalleryImages(current => 
+              setGalleryImages(current =>
                 current.filter(img => img.id !== selectedImage.id)
               )
-              
+
               // Close modal
               setModalVisible(false)
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
-              console.error("Error deleting image:", error)
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             }
           }
@@ -207,27 +193,26 @@ export default function GalleryScreen() {
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
+
       // First make sure we have a local file to share
       let fileUri = selectedImage.uri;
-      
+
       // If it's a remote image, download it first
       if (selectedImage.isRemote || selectedImage.uri.startsWith('http')) {
         const tempFile = `${FileSystem.cacheDirectory}share_image_${Date.now()}.jpg`;
-        
+
         // Show loading indicator
         Alert.alert("Preparing to share", "Downloading image...");
-        
+
         try {
           const { status } = await FileSystem.downloadAsync(selectedImage.uri, tempFile);
-          
+
           if (status === 200) {
             fileUri = tempFile;
           } else {
             throw new Error(`Failed to download with status ${status}`);
           }
         } catch (downloadError) {
-          console.error("Error downloading for sharing:", downloadError);
           Alert.alert("Error", "Failed to prepare image for sharing");
           return;
         }
@@ -246,11 +231,10 @@ export default function GalleryScreen() {
         dialogTitle: `Share your ${selectedImage.title || 'Colorized'} image`,
         UTI: 'public.jpeg'
       });
-      
+
       // Success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("Error sharing image:", error);
       Alert.alert("Share Failed", "Failed to share image");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -265,25 +249,24 @@ export default function GalleryScreen() {
       Alert.alert("Success", "Image saved to device gallery")
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("Error saving to device:", error)
       Alert.alert("Save Failed", "Failed to save image to device gallery")
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }
 
   // Enhanced gallery item with animation
-  const GalleryListItem = React.memo(({ 
-    item, 
+  const GalleryListItem = React.memo(({
+    item,
     onPress,
     index
-  }: { 
-    item: GalleryImage, 
+  }: {
+    item: GalleryImage,
     onPress: (item: GalleryImage) => void,
     index: number
   }) => {
     const scaleAnim = React.useRef(new Animated.Value(1)).current;
     const [imageError, setImageError] = useState(false);
-    
+
     const handlePressIn = () => {
       Animated.spring(scaleAnim, {
         toValue: 0.95,
@@ -292,7 +275,7 @@ export default function GalleryScreen() {
         useNativeDriver: true
       }).start();
     };
-    
+
     const handlePressOut = () => {
       Animated.spring(scaleAnim, {
         toValue: 1,
@@ -302,24 +285,19 @@ export default function GalleryScreen() {
       }).start();
     };
 
-    useEffect(() => {
-      // Log the image URI for debugging
-      console.log(`Gallery image ${index} URI: ${item.uri}`);
-    }, [item.uri, index]);
-    
     // Calculate item width based on screen width
     const itemWidth = (width - 40) / 2; // 2 columns with padding
-    
+
     return (
-      <Animated.View 
-        style={{ 
+      <Animated.View
+        style={{
           transform: [{ scale: scaleAnim }],
           width: itemWidth,
           margin: 5,
         }}
       >
-        <TouchableOpacity 
-          style={styles.imageItem} 
+        <TouchableOpacity
+          style={styles.imageItem}
           onPress={() => onPress(item)}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
@@ -332,20 +310,19 @@ export default function GalleryScreen() {
             </View>
           ) : (
             <View style={{ position: 'relative', width: '100%', height: 150 }}>
-              <ExpoImage 
-                source={{ uri: item.uri }} 
-                style={styles.thumbnail} 
-                placeholder={{ blurhash }} 
+              <ExpoImage
+                source={{ uri: item.uri }}
+                style={styles.thumbnail}
+                placeholder={{ blurhash }}
                 contentFit="cover"
                 cachePolicy="memory-disk"
                 recyclingKey={item.id}
                 transition={200}
                 onError={(error) => {
-                  console.error(`Failed to load image ${item.id}: ${error}`);
                   setImageError(true);
                 }}
               />
-              
+
               {/* Image title badge */}
               <View style={styles.titleBadge}>
                 <Text style={styles.titleText}>{item.title || "Colorized"}</Text>
@@ -364,12 +341,12 @@ export default function GalleryScreen() {
   const renderItem = ({ item, index }: { item: GalleryImage, index: number }) => (
     <GalleryListItem item={item} onPress={openImage} index={index} />
   );
-  
+
   // Render skeleton items
   const renderSkeletons = () => {
     const skeletons = [];
     const itemWidth = (width - 40) / 2; // Match the width calculation in GalleryListItem
-    
+
     for (let i = 0; i < 6; i++) {
       skeletons.push(
         <View key={`skeleton-${i}`} style={{ width: itemWidth, margin: 5 }}>
@@ -377,20 +354,20 @@ export default function GalleryScreen() {
         </View>
       );
     }
-    
+
     return (
       <View style={[styles.galleryContainer, { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }]}>
         {skeletons}
       </View>
     );
   };
-  
+
   // Enhanced empty state
   const renderEmptyState = () => (
-    <Animated.View 
+    <Animated.View
       style={[
-        styles.emptyContainer, 
-        { 
+        styles.emptyContainer,
+        {
           opacity: emptyAnim,
           transform: [{ translateY: emptyAnim.interpolate({
             inputRange: [0, 1],
@@ -404,7 +381,7 @@ export default function GalleryScreen() {
       </View>
       <Text style={styles.emptyText}>No colorized images yet</Text>
       <Text style={styles.emptySubtext}>Transform black & white photos and they'll appear here</Text>
-      
+
       <View style={styles.emptyTips}>
         <View style={styles.tipCard}>
           <View style={styles.tipIcon}>
@@ -412,7 +389,7 @@ export default function GalleryScreen() {
           </View>
           <Text style={styles.tipText}>Upload a photo in the Colorize tab</Text>
         </View>
-        
+
         <View style={styles.tipCard}>
           <View style={styles.tipIcon}>
             <Feather name="camera" size={20} color="#6366f1" />
@@ -422,21 +399,6 @@ export default function GalleryScreen() {
       </View>
     </Animated.View>
   );
-
-  useEffect(() => {
-    // Add diagnostics for loaded gallery images
-    if (galleryImages.length > 0) {
-      console.log("Gallery component has", galleryImages.length, "images to display");
-      console.log("First image:", JSON.stringify({
-        id: galleryImages[0].id,
-        uri: galleryImages[0].uri.substring(0, 100) + "...",
-        date: galleryImages[0].date,
-        isRemote: galleryImages[0].isRemote
-      }));
-    } else if (!isLoading) {
-      console.log("Gallery has no images to display (not loading)");
-    }
-  }, [galleryImages, isLoading]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -484,15 +446,15 @@ export default function GalleryScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalBackground}
             activeOpacity={1}
             onPress={() => setModalVisible(false)}
           />
-          
+
           <View style={styles.modalContent}>
-            <TouchableOpacity 
-              style={styles.closeButton} 
+            <TouchableOpacity
+              style={styles.closeButton}
               onPress={() => {
                 setModalVisible(false);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -511,14 +473,14 @@ export default function GalleryScreen() {
                 <View style={styles.modalTitleContainer}>
                   <Text style={styles.modalTitle}>{selectedImage.title || "Colorized"}</Text>
                 </View>
-                
-                <ExpoImage 
-                  source={{ uri: selectedImage.uri }} 
-                  style={styles.modalImage} 
-                  placeholder={{ blurhash }} 
-                  contentFit="contain" 
+
+                <ExpoImage
+                  source={{ uri: selectedImage.uri }}
+                  style={styles.modalImage}
+                  placeholder={{ blurhash }}
+                  contentFit="contain"
                 />
-                
+
                 {selectedImage.isRemote && (
                   <View style={styles.cloudIndicator}>
                     <Feather name="cloud" size={16} color="#fff" />

@@ -42,13 +42,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 // Helper function to convert Supabase user to our User type using database
 const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session): Promise<User> => {
   try {
-    console.log('🔍 Debug: convertSupabaseUser called')
-    console.log('User ID:', supabaseUser.id)
-    console.log('Email:', supabaseUser.email)
-    
     // Get the access token from the session
     const accessToken = session.access_token
-    
+
     // Try to get profile from database first (with access token)
     const authenticatedDb = getAuthenticatedDb(accessToken)
     const { data: existingProfile, error: checkError } = await authenticatedDb
@@ -56,40 +52,35 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
       .select('*')
       .eq('id', supabaseUser.id)
       .maybeSingle()
-    
+
     let userProfile = existingProfile
-    console.log('Profile found:', !!userProfile)
-    
+
     if (!userProfile) {
-      console.log('🔧 Creating new profile')
-      
       // Create the user profile using the authenticated client
       const profileData = {
         id: supabaseUser.id,
         email: supabaseUser.email || '',
-        full_name: supabaseUser.user_metadata?.full_name || 
-                  supabaseUser.user_metadata?.name || 
-                  supabaseUser.email?.split("@")[0] || 
+        full_name: supabaseUser.user_metadata?.full_name ||
+                  supabaseUser.user_metadata?.name ||
+                  supabaseUser.email?.split("@")[0] ||
                   "User",
-        avatar_url: supabaseUser.user_metadata?.avatar_url || 
-                   supabaseUser.user_metadata?.picture || 
+        avatar_url: supabaseUser.user_metadata?.avatar_url ||
+                   supabaseUser.user_metadata?.picture ||
                    null,
         credits: 5,
         last_active_date: new Date().toISOString().split('T')[0],
         streak_count: 1
       }
-      
+
       // Insert the profile using the authenticated client
       const { data: createdProfile, error: insertError } = await authenticatedDb
         .from('user_profiles')
         .insert(profileData)
         .select()
         .single()
-      
+
       if (insertError) {
-        console.error('Profile creation error:', insertError)
         // If creation fails, fall back to the basic user info
-        console.log('⚠️ Using fallback user data due to profile creation failure')
         return {
           id: supabaseUser.id,
           name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "User",
@@ -101,23 +92,19 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
           images: []
         }
       }
-      
+
       userProfile = createdProfile
-      console.log('✅ Profile creation successful!')
-    } else {
-      console.log('✅ Profile found, using existing profile')
     }
-    
+
     // Record user login activity (non-blocking, with access token)
     DatabaseService.recordUserActivity(supabaseUser.id, 'login', accessToken).catch(error => {
-      console.warn('Failed to record user activity:', error)
     })
-    
+
     // Ensure userProfile exists before using it
     if (!userProfile) {
       throw new Error('Failed to create or retrieve user profile')
     }
-    
+
     return {
       id: supabaseUser.id,
       name: userProfile.full_name || supabaseUser.user_metadata?.full_name || supabaseUser.email?.split("@")[0] || "User",
@@ -129,7 +116,6 @@ const convertSupabaseUser = async (supabaseUser: SupabaseUser, session: Session)
       images: [] // Will be loaded separately via DatabaseService.getUserImages()
     }
   } catch (error) {
-    console.error('Error loading user profile from database:', error)
     // Fallback to basic user info if database fails
     return {
       id: supabaseUser.id,
@@ -157,7 +143,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const convertedUser = await convertSupabaseUser(session.user, session)
           setUser(convertedUser)
         } catch (error) {
-          console.error('Error converting user:', error)
         }
       }
       setSession(session)
@@ -166,20 +151,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id)
-      
       if (session?.user) {
         try {
           const convertedUser = await convertSupabaseUser(session.user, session)
           setUser(convertedUser)
         } catch (error) {
-          console.error('Error converting user on auth change:', error)
           setUser(null)
         }
       } else {
         setUser(null)
       }
-      
+
       setSession(session)
       setIsLoading(false)
     })
@@ -191,7 +173,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await AuthService.signInWithEmail(email, password)
     } catch (error) {
-      console.error('Login error:', error)
       throw error
     }
   }
@@ -200,7 +181,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await AuthService.signUpWithEmail(email, password, name)
     } catch (error) {
-      console.error('Signup error:', error)
       throw error
     }
   }
@@ -209,7 +189,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await AuthService.signInWithGoogle()
     } catch (error) {
-      console.error('Google sign-in error:', error)
       throw error
     }
   }
@@ -218,7 +197,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await AuthService.signInWithApple()
     } catch (error) {
-      console.error('Apple sign-in error:', error)
       throw error
     }
   }
@@ -255,7 +233,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         avatar: data.avatar || user.avatar,
         })
       } catch (error) {
-      console.error('Update profile error:', error)
         throw error
     }
   }
@@ -266,7 +243,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
       setSession(null)
     } catch (error) {
-      console.error('Logout error:', error)
       throw error
     }
   }
@@ -274,15 +250,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-      user, 
+      user,
         session,
-      isLoading, 
-      login, 
-      signup, 
+      isLoading,
+      login,
+      signup,
       signInWithGoogle,
       signInWithApple,
-      logout, 
-      updateProfile, 
+      logout,
+      updateProfile,
         setUser,
       }}
     >

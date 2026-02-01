@@ -22,7 +22,8 @@
       "bundleIdentifier": "com.max.colouriseaiapp",
       "appleTeamId": "4LYN3P325H",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "MinimumOSVersion": "15.1"
       }
     },
     "android": {

@@ -29,7 +29,7 @@ export default function PrivacyPolicyScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.lastUpdated}>Last Updated: June 15, 2023</Text>
+        <Text style={styles.lastUpdated}>Last Updated: February 1, 2026</Text>
         
         <Text style={styles.sectionTitle}>1. Introduction</Text>
         <Text style={styles.paragraph}>
@@ -107,15 +107,66 @@ export default function PrivacyPolicyScreen() {
           • With Your Consent: When you have consented to the sharing of your information.
         </Text>
 
-        <Text style={styles.sectionTitle}>5. Data Storage and Security</Text>
+        <Text style={styles.sectionTitle}>5. Third-Party AI Processing Services</Text>
+        <Text style={styles.paragraph}>
+          To provide our image colorization and enhancement features, we use the following third-party AI services:
+        </Text>
+        <Text style={styles.paragraph}>
+          • DeepAI: Used for automatic image colorization. Images you upload are processed by DeepAI's servers to apply AI-based colorization.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Cloudinary: Used for image enhancement, upscaling, and optimization. Your images may be temporarily stored on Cloudinary servers during processing.
+        </Text>
+        <Text style={styles.paragraph}>
+          • OpenAI: Used for AI Scene Builder feature to generate creative scene descriptions and enhancements for your images.
+        </Text>
+        <Text style={styles.paragraph}>
+          These third-party services have their own privacy policies governing their data practices. We recommend reviewing their policies for more information about how they handle your data.
+        </Text>
+
+        <Text style={styles.sectionTitle}>6. Face and Biometric Data</Text>
+        <Text style={styles.paragraph}>
+          Our Face Enhancement feature processes facial features in your photographs to improve image quality. This processing:
+        </Text>
+        <Text style={styles.paragraph}>
+          • Is performed solely to enhance image quality and is not used for facial recognition or identification purposes.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Does not create or store biometric identifiers or templates.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Is processed through our third-party service providers as described above.
+        </Text>
+        <Text style={styles.paragraph}>
+          We do not use facial data for any purpose other than the image enhancement you request.
+        </Text>
+
+        <Text style={styles.sectionTitle}>7. Data Storage and Security</Text>
         <Text style={styles.paragraph}>
           We implement appropriate technical and organizational measures to protect your personal information against unauthorized or unlawful processing, accidental loss, destruction, or damage. However, no method of transmission over the internet or electronic storage is 100% secure.
         </Text>
         <Text style={styles.paragraph}>
-          Your data is stored on secure servers and we retain your information for as long as your account is active or as needed to provide you services, comply with legal obligations, resolve disputes, and enforce our agreements.
+          Your data is stored on secure servers provided by Supabase, our infrastructure partner. We retain your information for as long as your account is active or as needed to provide you services, comply with legal obligations, resolve disputes, and enforce our agreements.
         </Text>
 
-        <Text style={styles.sectionTitle}>6. Your Rights and Choices</Text>
+        <Text style={styles.sectionTitle}>8. Data Retention</Text>
+        <Text style={styles.paragraph}>
+          We retain different types of data for different periods:
+        </Text>
+        <Text style={styles.paragraph}>
+          • Account Information: Retained until you delete your account or request deletion.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Processed Images: Stored in your gallery until you delete them or close your account.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Transaction Records: Retained for 7 years for legal and accounting purposes.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Usage Analytics: Retained for up to 2 years in anonymized form.
+        </Text>
+
+        <Text style={styles.sectionTitle}>9. Your Rights and Choices</Text>
         <Text style={styles.paragraph}>
           Depending on your location, you may have certain rights regarding your personal information, including:
         </Text>
@@ -135,17 +186,37 @@ export default function PrivacyPolicyScreen() {
           To exercise these rights, please contact us at privacy@colouriseai.com.
         </Text>
 
-        <Text style={styles.sectionTitle}>7. Children's Privacy</Text>
+        <Text style={styles.sectionTitle}>10. Account and Data Deletion</Text>
+        <Text style={styles.paragraph}>
+          You may delete your account at any time through the app settings. When you delete your account:
+        </Text>
+        <Text style={styles.paragraph}>
+          • Your profile information and preferences will be permanently deleted.
+        </Text>
+        <Text style={styles.paragraph}>
+          • All images stored in your gallery will be permanently deleted from our servers.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Your credit balance will be forfeited and cannot be refunded.
+        </Text>
+        <Text style={styles.paragraph}>
+          • Transaction records may be retained for legal compliance purposes.
+        </Text>
+        <Text style={styles.paragraph}>
+          Deletion requests are processed within 30 days. You may also request deletion by emailing privacy@colouriseai.com.
+        </Text>
+
+        <Text style={styles.sectionTitle}>11. Children's Privacy</Text>
         <Text style={styles.paragraph}>
           Our app is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13. If you are a parent or guardian and believe your child has provided us with personal information, please contact us.
         </Text>
 
-        <Text style={styles.sectionTitle}>8. Changes to This Privacy Policy</Text>
+        <Text style={styles.sectionTitle}>12. Changes to This Privacy Policy</Text>
         <Text style={styles.paragraph}>
           We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date. You are advised to review this Privacy Policy periodically for any changes.
         </Text>
 
-        <Text style={styles.sectionTitle}>9. Contact Us</Text>
+        <Text style={styles.sectionTitle}>13. Contact Us</Text>
         <Text style={styles.paragraph}>
           If you have any questions or concerns about our Privacy Policy or data practices, please contact us at:
         </Text>

@@ -29,7 +29,7 @@ export default function TermsOfServiceScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.lastUpdated}>Last Updated: June 15, 2023</Text>
+        <Text style={styles.lastUpdated}>Last Updated: February 1, 2026</Text>
         
         <Text style={styles.sectionTitle}>1. Agreement to Terms</Text>
         <Text style={styles.paragraph}>

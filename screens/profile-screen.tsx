@@ -24,6 +24,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { Feather, Ionicons } from "@expo/vector-icons"
 import { useAuth } from "../context/auth-context"
 import { useSubscription } from "../context/subscription-context"
+import { usePurchases } from "../context/purchases-context"
 import * as ImagePicker from "expo-image-picker"
 import { BlurView } from "expo-blur"
 import { StatusBar } from "expo-status-bar"
@@ -94,7 +95,8 @@ type ProfileScreenNavigationProp = StackNavigationProp<ProfileStackParamList>;
 
 export default function ProfileScreen() {
   const { user, logout, updateProfile, setUser } = useAuth()
-  const { isPremium, purchaseCredits } = useSubscription()
+  const { isPremium } = useSubscription()
+  const { packages: revenueCatPackages, purchaseCredits, isLoading: isPurchasing, refreshCredits } = usePurchases()
   const navigation = useNavigation<ProfileScreenNavigationProp>()
   
   // State
@@ -298,10 +300,25 @@ export default function ProfileScreen() {
     }
   }
 
-  // Handle credits purchase
+  // Handle credits purchase - uses RevenueCat
   const handlePurchaseCredits = async (packageId: string) => {
-    // TODO: Implement actual purchase logic
-    Alert.alert('Purchase Credits', 'Payment integration coming soon!');
+    // Map local package IDs to RevenueCat product IDs
+    const productIdMap: Record<string, string> = {
+      '1': 'credits_20',
+      '2': 'credits_70',
+      '3': 'credits_250',
+    }
+
+    const productId = productIdMap[packageId] || packageId
+
+    const success = await purchaseCredits(productId)
+
+    if (success) {
+      // Close the modal on successful purchase
+      closeCreditsModal()
+      // Refresh credits from server
+      await refreshCredits()
+    }
   };
 
   const closeCreditsModal = () => {

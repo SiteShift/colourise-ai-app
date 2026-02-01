@@ -1,5 +1,4 @@
-import { GoTrueClient } from '@supabase/gotrue-js'
-import { PostgrestClient } from '@supabase/postgrest-js'
+import { createClient } from '@supabase/supabase-js'
 import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
 
@@ -8,28 +7,28 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
 
 // Validate environment variables
 if (!supabaseUrl) {
-  throw new Error("EXPO_PUBLIC_SUPABASE_URL environment variable is not set");
+  throw new Error("EXPO_PUBLIC_SUPABASE_URL environment variable is not set")
 }
 if (!supabaseAnonKey) {
-  throw new Error("EXPO_PUBLIC_SUPABASE_ANON_KEY environment variable is not set");
+  throw new Error("EXPO_PUBLIC_SUPABASE_ANON_KEY environment variable is not set")
 }
 
-// Use Expo's secure storage for auth tokens
+// Use Expo's secure storage for auth tokens (with web fallback)
 const ExpoSecureStoreAdapter = {
-  getItem: async (key: string) => {
+  getItem: async (key: string): Promise<string | null> => {
     if (Platform.OS === 'web') {
       return localStorage.getItem(key)
     }
     return await SecureStore.getItemAsync(key)
   },
-  setItem: async (key: string, value: string) => {
+  setItem: async (key: string, value: string): Promise<void> => {
     if (Platform.OS === 'web') {
       localStorage.setItem(key, value)
     } else {
       await SecureStore.setItemAsync(key, value)
     }
   },
-  removeItem: async (key: string) => {
+  removeItem: async (key: string): Promise<void> => {
     if (Platform.OS === 'web') {
       localStorage.removeItem(key)
     } else {
@@ -38,123 +37,200 @@ const ExpoSecureStoreAdapter = {
   },
 }
 
-// Create separate auth client (no WebSocket dependencies)
-export const auth = new GoTrueClient({
-  url: `${supabaseUrl}/auth/v1`,
-  headers: {
-    apikey: supabaseAnonKey,
-    Authorization: `Bearer ${supabaseAnonKey}`,
+// Create full Supabase client with auth, storage, and functions support
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: ExpoSecureStoreAdapter,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false, // Important for React Native
   },
-  autoRefreshToken: true,
-  persistSession: true,
-  storageKey: 'supabase.auth.token',
-  storage: ExpoSecureStoreAdapter,
-  fetch,
 })
 
-// Create database client (no WebSocket dependencies)
-export const db = new PostgrestClient(`${supabaseUrl}/rest/v1`, {
-  headers: {
-    apikey: supabaseAnonKey,
-    Authorization: `Bearer ${supabaseAnonKey}`,
-  },
-  fetch,
-})
+// Export auth separately for backward compatibility
+export const auth = supabase.auth
+
+// Export db for backward compatibility (points to Supabase's from method)
+export const db = {
+  from: (table: string) => supabase.from(table),
+}
 
 // Function to get authenticated database client
+// Note: With full SDK, auth is automatically included in requests
+// This function is kept for backward compatibility but may be simplified
 export const getAuthenticatedDb = (accessToken?: string) => {
   if (accessToken) {
-    return new PostgrestClient(`${supabaseUrl}/rest/v1`, {
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
+    // Create a client with the specific access token
+    return createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       },
-      fetch,
     })
   }
-  return db
+  return supabase
 }
 
-// Function to update database client headers with user token
-export const updateDbHeaders = (accessToken: string) => {
-  // Update the global db client headers
-  if (db && accessToken) {
-    db.headers = {
-      ...db.headers,
-      Authorization: `Bearer ${accessToken}`,
+// Helper to convert local file URI to blob for upload
+export const uriToBlob = async (uri: string): Promise<Blob> => {
+  const response = await fetch(uri)
+  return await response.blob()
+}
+
+// Storage service for image uploads (replaces the mock supabaseStorage)
+export const storageService = {
+  // Upload an image to Supabase Storage
+  uploadImage: async (
+    userId: string,
+    imageUri: string,
+    bucket: 'original-images' | 'colorized-images' = 'original-images'
+  ): Promise<{ path: string; signedUrl: string }> => {
+    const fileName = `${userId}/${Date.now()}.jpg`
+
+    // Convert URI to blob
+    const blob = await uriToBlob(imageUri)
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, blob, {
+        contentType: 'image/jpeg',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      throw new Error(`Upload failed: ${uploadError.message}`)
     }
-  }
-}
 
-// Compatibility wrapper for existing code
-export const supabase = {
-  auth,
-  from: (table: string) => db.from(table),
-  // Add other methods as needed
-}
+    // Get signed URL (valid for 1 hour)
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(fileName, 3600)
 
-interface ImageMetadata {
-  id: string;
-  userId: string;
-  imageUrl: string;
-  createdAt: string;
-}
+    if (signedUrlError || !signedUrlData) {
+      throw new Error(`Failed to create signed URL: ${signedUrlError?.message}`)
+    }
 
-// In-memory storage for demo purposes (keeping this until we set up proper database tables)
-let imagesStorage: ImageMetadata[] = [];
-
-export const supabaseStorage = {
-  // Upload an image to "Supabase"
-  uploadImage: async (userId: string, imageUri: string): Promise<ImageMetadata> => {
-    try {
-      // In a real implementation, you would:
-      // 1. Upload the file to Supabase storage
-      // 2. Get the URL of the uploaded file
-      // 3. Store metadata in a Supabase table
-      
-      // For this mock, we'll just create a metadata entry with the original URI
-      const metadata: ImageMetadata = {
-        id: Date.now().toString(),
-        userId,
-        imageUrl: imageUri,
-        createdAt: new Date().toISOString(),
-      };
-      
-      imagesStorage.push(metadata);
-      
-      // Return the metadata
-      return metadata;
-    } catch (error) {
-      console.error("Error uploading image to Supabase:", error);
-      throw error;
+    return {
+      path: fileName,
+      signedUrl: signedUrlData.signedUrl,
     }
   },
-  
-  // Get all images for a user
-  getUserImages: async (userId: string): Promise<ImageMetadata[]> => {
-    try {
-      // In a real implementation, you would query the Supabase table
-      
-      // For this mock, we'll filter the in-memory storage
-      return imagesStorage.filter(img => img.userId === userId);
-    } catch (error) {
-      console.error("Error getting user images from Supabase:", error);
-      throw error;
+
+  // Get signed URL for an existing image
+  getSignedUrl: async (
+    bucket: 'original-images' | 'colorized-images',
+    path: string,
+    expiresIn: number = 3600
+  ): Promise<string> => {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(path, expiresIn)
+
+    if (error || !data) {
+      throw new Error(`Failed to get signed URL: ${error?.message}`)
+    }
+
+    return data.signedUrl
+  },
+
+  // Delete an image from storage
+  deleteImage: async (
+    bucket: 'original-images' | 'colorized-images',
+    path: string
+  ): Promise<void> => {
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([path])
+
+    if (error) {
+      throw new Error(`Delete failed: ${error.message}`)
     }
   },
-  
-  // Delete an image
-  deleteImage: async (imageId: string): Promise<void> => {
-    try {
-      // In a real implementation, you would:
-      // 1. Delete the file from Supabase storage
-      // 2. Delete the metadata from the Supabase table
-      
-      // For this mock, we'll just remove it from our in-memory storage
-      imagesStorage = imagesStorage.filter(img => img.id !== imageId);
-    } catch (error) {
-      console.error("Error deleting image from Supabase:", error);
-      throw error;
+
+  // List all images for a user
+  listUserImages: async (
+    userId: string,
+    bucket: 'original-images' | 'colorized-images' = 'colorized-images'
+  ): Promise<{ name: string; created_at: string }[]> => {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list(userId, {
+        sortBy: { column: 'created_at', order: 'desc' },
+      })
+
+    if (error) {
+      throw new Error(`List failed: ${error.message}`)
     }
-  }
-}; 
+
+    return data || []
+  },
+}
+
+// Edge Functions service
+export const functionsService = {
+  // Invoke an edge function
+  invoke: async <T = unknown>(
+    functionName: string,
+    body: Record<string, unknown>
+  ): Promise<T> => {
+    const { data, error } = await supabase.functions.invoke(functionName, {
+      body,
+    })
+
+    if (error) {
+      throw new Error(`Function ${functionName} failed: ${error.message}`)
+    }
+
+    return data as T
+  },
+
+  // Colorize an image
+  colorize: async (storagePath: string): Promise<{
+    success: boolean
+    url: string
+    creditsRemaining: number
+  }> => {
+    return functionsService.invoke('colorize', { storagePath })
+  },
+
+  // Enhance face in an image
+  enhanceFace: async (storagePath: string): Promise<{
+    success: boolean
+    url: string
+    creditsRemaining: number
+  }> => {
+    return functionsService.invoke('enhance-face', { storagePath })
+  },
+
+  // Upscale an image to 4K
+  upscale: async (storagePath: string): Promise<{
+    success: boolean
+    url: string
+    creditsRemaining: number
+  }> => {
+    return functionsService.invoke('upscale', { storagePath })
+  },
+
+  // Generate AI scene
+  generateScene: async (
+    storagePath: string,
+    scene: string,
+    customPrompt?: string
+  ): Promise<{
+    success: boolean
+    url: string
+    creditsRemaining: number
+  }> => {
+    return functionsService.invoke('generate-scene', {
+      storagePath,
+      scene,
+      customPrompt,
+    })
+  },
+}
+
+// Type exports for use in other files
+export type StorageService = typeof storageService
+export type FunctionsService = typeof functionsService

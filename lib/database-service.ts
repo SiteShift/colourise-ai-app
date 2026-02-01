@@ -63,7 +63,7 @@ export class DatabaseService {
   // ========================================
   // USER PROFILE OPERATIONS
   // ========================================
-  
+
   static async getUserProfile(userId: string, accessToken?: string): Promise<UserProfile | null> {
     try {
       const client = getAuthenticatedDb(accessToken)
@@ -72,15 +72,13 @@ export class DatabaseService {
         .select('*')
         .eq('id', userId)
         .single()
-      
+
       if (error) {
-        console.error('Error fetching user profile:', error)
         return null
       }
-      
+
       return data
     } catch (error) {
-      console.error('Error in getUserProfile:', error)
       return null
     }
   }
@@ -95,13 +93,11 @@ export class DatabaseService {
         .single()
 
       if (error) {
-        console.error('Error creating user profile:', error)
         return null
       }
 
       return data
     } catch (error) {
-      console.error('Error in createUserProfile:', error)
       return null
     }
   }
@@ -115,15 +111,13 @@ export class DatabaseService {
         .eq('id', userId)
         .select()
         .single()
-      
+
       if (error) {
-        console.error('Error updating user profile:', error)
         return null
       }
-      
+
       return data
     } catch (error) {
-      console.error('Error in updateUserProfile:', error)
       return null
     }
   }
@@ -131,7 +125,7 @@ export class DatabaseService {
   // ========================================
   // USER IMAGES OPERATIONS
   // ========================================
-  
+
   static async getUserImages(userId: string, limit: number = 50, accessToken?: string): Promise<UserImage[]> {
     try {
       const client = getAuthenticatedDb(accessToken)
@@ -141,15 +135,13 @@ export class DatabaseService {
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit)
-      
+
       if (error) {
-        console.error('Error fetching user images:', error)
         return []
       }
-      
+
       return data || []
     } catch (error) {
-      console.error('Error in getUserImages:', error)
       return []
     }
   }
@@ -162,15 +154,13 @@ export class DatabaseService {
         .insert([imageData])
         .select()
         .single()
-      
+
       if (error) {
-        console.error('Error creating user image:', error)
         return null
       }
-      
+
       return data
     } catch (error) {
-      console.error('Error in createUserImage:', error)
       return null
     }
   }
@@ -184,15 +174,13 @@ export class DatabaseService {
         .eq('id', imageId)
         .select()
         .single()
-      
+
       if (error) {
-        console.error('Error updating user image:', error)
         return null
       }
-      
+
       return data
     } catch (error) {
-      console.error('Error in updateUserImage:', error)
       return null
     }
   }
@@ -204,15 +192,13 @@ export class DatabaseService {
         .from('user_images')
         .delete()
         .eq('id', imageId)
-      
+
       if (error) {
-        console.error('Error deleting user image:', error)
         return false
       }
-      
+
       return true
     } catch (error) {
-      console.error('Error in deleteUserImage:', error)
       return false
     }
   }
@@ -220,13 +206,12 @@ export class DatabaseService {
   // ========================================
   // CREDIT OPERATIONS
   // ========================================
-  
+
   static async getUserCredits(userId: string, accessToken?: string): Promise<number> {
     try {
       const profile = await this.getUserProfile(userId, accessToken)
       return profile?.credits || 0
     } catch (error) {
-      console.error('Error getting user credits:', error)
       return 0
     }
   }
@@ -238,15 +223,13 @@ export class DatabaseService {
         .from('user_profiles')
         .update({ credits: newCredits })
         .eq('id', userId)
-      
+
       if (error) {
-        console.error('Error updating user credits:', error)
         return false
       }
-      
+
       return true
     } catch (error) {
-      console.error('Error in updateUserCredits:', error)
       return false
     }
   }
@@ -254,12 +237,11 @@ export class DatabaseService {
   static async deductCredits(userId: string, amount: number, description: string, accessToken?: string): Promise<boolean> {
     try {
       const currentCredits = await this.getUserCredits(userId, accessToken)
-      
+
       if (currentCredits < amount) {
-        console.error('Insufficient credits')
         return false
       }
-      
+
       const newCredits = currentCredits - amount
       const success = await this.updateUserCredits(userId, newCredits, accessToken)
 
@@ -270,7 +252,6 @@ export class DatabaseService {
 
       return success
     } catch (error) {
-      console.error('Error in deductCredits:', error)
       return false
     }
   }
@@ -288,7 +269,6 @@ export class DatabaseService {
 
       return success
     } catch (error) {
-      console.error('Error in addCredits:', error)
       return false
     }
   }
@@ -299,16 +279,31 @@ export class DatabaseService {
     amount: number,
     description: string,
     referenceId: string | null,
-    accessToken?: string
+    accessToken?: string,
+    balanceAfter?: number
   ): Promise<CreditTransaction | null> {
     try {
       const client = getAuthenticatedDb(accessToken)
+
+      // If balanceAfter not provided, fetch current balance first
+      let creditsBalanceAfter = balanceAfter
+      if (creditsBalanceAfter === undefined) {
+        const { data: profile } = await client
+          .from('user_profiles')
+          .select('credits')
+          .eq('id', userId)
+          .single()
+
+        creditsBalanceAfter = (profile?.credits || 0) + (type === 'usage' ? -Math.abs(amount) : amount)
+      }
+
       const { data, error } = await client
         .from('credit_transactions')
         .insert([{
           user_id: userId,
           transaction_type: type,
           credits_amount: amount,
+          credits_balance_after: creditsBalanceAfter,
           description,
           reference_id: referenceId,
         }])
@@ -316,13 +311,12 @@ export class DatabaseService {
         .single()
 
       if (error) {
-        console.error('Error recording credit transaction:', error)
+        // Log error but don't expose to console in production
         return null
       }
 
       return data
     } catch (error) {
-      console.error('Error in recordCreditTransaction:', error)
       return null
     }
   }
@@ -336,15 +330,13 @@ export class DatabaseService {
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(limit)
-      
+
       if (error) {
-        console.error('Error fetching credit transactions:', error)
         return []
       }
-      
+
       return data || []
     } catch (error) {
-      console.error('Error in getCreditTransactions:', error)
       return []
     }
   }
@@ -352,7 +344,7 @@ export class DatabaseService {
   // ========================================
   // CREDIT PACKAGES
   // ========================================
-  
+
   static async getCreditPackages(): Promise<CreditPackage[]> {
     try {
       const { data, error } = await db
@@ -360,15 +352,13 @@ export class DatabaseService {
         .select('*')
         .eq('is_active', true)
         .order('price', { ascending: true })
-      
+
       if (error) {
-        console.error('Error fetching credit packages:', error)
         return []
       }
-      
+
       return data || []
     } catch (error) {
-      console.error('Error in getCreditPackages:', error)
       return []
     }
   }
@@ -376,31 +366,29 @@ export class DatabaseService {
   // ========================================
   // USER ACTIVITY & STREAKS
   // ========================================
-  
+
   static async recordUserActivity(userId: string, activityType: string, accessToken?: string): Promise<void> {
     try {
       const today = new Date().toISOString().split('T')[0]
-      
+
       // Update last active date and potentially streak
       const client = getAuthenticatedDb(accessToken)
       await client
         .from('user_profiles')
-        .update({ 
+        .update({
           last_active_date: today,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId)
 
-      console.log(`Recorded ${activityType} activity for user ${userId}`)
     } catch (error) {
-      console.error('Error recording user activity:', error)
     }
   }
 
   // ========================================
   // ANALYTICS & STATS
   // ========================================
-  
+
   static async getUserStats(userId: string) {
     try {
       const { data, error } = await db
@@ -408,16 +396,14 @@ export class DatabaseService {
         .select('*')
         .eq('id', userId)
         .single()
-      
+
       if (error) {
-        console.error('Error fetching user stats:', error)
         return null
       }
-      
+
       return data
     } catch (error) {
-      console.error('Error in getUserStats:', error)
       return null
     }
   }
-} 
+}
